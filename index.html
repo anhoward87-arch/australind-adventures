@@ -23,20 +23,46 @@ button:active{background:#ffd176}
 #pad [data-key="down"]{grid-area:down}
 @media (pointer:coarse){#touch{display:flex}#hint{bottom:calc(160px + max(14px,env(safe-area-inset-bottom)))}#keys{display:none}}
 @media(max-height:520px){#quests{top:76px;padding:8px 12px}header{padding:8px 12px}}
-#startup{z-index:4;top:50%;left:50%;transform:translate(-50%,-50%);width:min(90vw,400px);text-align:center}#startup[hidden]{display:none}#map-credit{position:absolute;bottom:4px;right:8px;color:#fff;background:#123a35;padding:3px 7px;border-radius:6px;font-size:11px}
-@media(pointer:coarse){#map-credit{bottom:auto;top:76px;right:12px}}
+#startup{z-index:4;top:50%;left:50%;transform:translate(-50%,-50%);width:min(90vw,400px);text-align:center}#startup[hidden]{display:none}
+@media(pointer:coarse){}
 #street{display:block;color:#fff4cf;font-size:clamp(13px,2vw,18px);font-weight:700;margin-top:2px}
 @media(max-width:490px){#quests{top:108px}}
 @media(max-height:520px){#quests{top:108px}}
+
+html,body{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;overscroll-behavior:none}
+[hidden]{display:none!important}
+header{z-index:1;left:0;right:0;display:grid;place-items:center;pointer-events:none;text-align:center}
+#street{max-width:calc(100vw - 230px);text-shadow:0 1px 4px #102e29,0 1px 6px #102e29}
+#gps{position:absolute;left:max(10px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));width:clamp(92px,16vw,132px);border:2px solid #fff3cf;border-radius:12px;background:#123a35}
+#gps-map{width:100%;height:auto;border-radius:9px}
+#map-info{position:absolute;left:4px;bottom:3px;font-size:14px;color:#fff;background:#123a35;border-radius:5px;padding:2px 4px}
+#map-info summary{cursor:pointer;list-style:none}
+#map-info a{color:white;white-space:nowrap;font-size:11px}
+#quests,#phone-icon{position:absolute;top:max(50px,calc(env(safe-area-inset-top) + 36px));right:max(10px,env(safe-area-inset-right));left:auto}
+#quests{width:min(234px,calc(100vw - 126px));padding:9px 12px 12px;border:5px solid #273d3c;border-radius:23px;background:#123a35f5;box-shadow:0 5px 14px #0005;touch-action:none;font-size:clamp(11px,1.65vw,14px)}
+#phone-minimize{display:block;margin:0 auto 4px;min-height:26px;padding:0 15px}
+#actions{position:absolute;right:max(14px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));display:flex;align-items:end;gap:6px}
+#actions button{max-width:36vw}
+#hint{bottom:74px}
+#touch{right:auto;left:max(14px,env(safe-area-inset-left))}
+@media(pointer:coarse){#hint{bottom:calc(154px + max(14px,env(safe-area-inset-bottom)))}}
+@media(max-width:460px){#actions{flex-direction:column}#actions button{font-size:13px}#street{max-width:calc(100vw - 126px);margin-left:104px}}
+#house{width:min(92vw,590px);padding:0;border:0;border-radius:18px;background:#ebe0c0;color:#213633}
+#house::backdrop{background:#081b19d9}
+.room{max-height:90dvh;overflow:auto;padding:16px;background:linear-gradient(#e7d3a6 68%,#927851 68%);text-align:center}
+.room h2,.room p{margin:0 0 6px}
+.tv{background:#263630;border:8px solid #192623;border-radius:15px;margin:8px auto;max-width:480px;padding-bottom:6px}
+#tv-game{width:100%;height:auto;max-height:38dvh;object-fit:contain}
 </style>
 </head>
 <body>
 <canvas id="world" aria-label="Perspective 3D Australind foreshore game"></canvas>
-<header class="panel"><div><h1>Australind Adventures</h1><small>Australind · Playtest 15</small><span id="street">Ridley Place Foreshore</span></div><button id="reset">Return to park</button></header>
-<section class="panel" id="quests"><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p></section>
+<header><span id="street">Ridley Place Foreshore</span></header>
+<button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p></section>
 <div class="panel" id="hint" aria-live="polite"><span id="prompt">Explore the foreshore.</span><small id="keys"><br>W / ↑ forward · S / ↓ reverse · A D / ← → turn · E to interact</small></div>
-<div id="touch"><div id="pad"><button data-key="up" aria-label="Move forward">▲</button><button data-key="left" aria-label="Turn left">◀</button><button data-key="down" aria-label="Move backward">▼</button><button data-key="right" aria-label="Turn right">▶</button></div><button id="action">Interact</button></div>
-<a id="map-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors (ODbL)</a>
+<div id="touch"><div id="pad"><button data-key="up" aria-label="Move forward">▲</button><button data-key="left" aria-label="Turn left">◀</button><button data-key="down" aria-label="Move backward">▼</button><button data-key="right" aria-label="Turn right">▶</button></div></div><div id="actions"><button id="action">Interact</button><button id="reset">Return to park</button></div>
+<aside id="gps" aria-label="GPS overview"><canvas id="gps-map" width="240" height="180" aria-label="Zoomed-out map centred on your location"></canvas><details id="map-info" open><summary aria-label="Map data information">ⓘ</summary><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap · ODbL</a></details></aside>
+<dialog id="house"><div class="room"><div class="room-wall"><h2>Living room</h2><p>Play Estuary Glide on the TV.</p></div><div class="tv"><canvas id="tv-game" width="480" height="270" aria-label="Estuary Glide game"></canvas><button id="tv-flap">Play</button></div><button id="house-exit">Go outside</button></div></dialog>
 <p class="panel" id="startup" role="status">If the game does not appear here, download the HTML file and open it in a browser.</p>
 <script>
 "use strict";
@@ -744,12 +770,16 @@ const traffic=[
   createTraveller(parisTraffic,.2,18,{mode:"Car",style:"ute",paint:"#9e604c",lane:1.5}),
   createTraveller(parisTraffic,1.21,16,{mode:"Bus",lane:1.5}),
   createTraveller(parisTraffic,1.65,18,{mode:"Car",style:"hatch",paint:"#c4bfaa",lane:1.5}),
-  createTraveller(localTraffic,.43,11,{mode:"Car",style:"wagon",paint:"#57788e",lane:1.15})
+  createTraveller(localTraffic,.43,11,{mode:"Car",style:"wagon",paint:"#57788e",lane:1.15}),
+  createTraveller(coastTraffic,.87,15,{mode:"Car",style:"ute",paint:"#527a67",lane:1.5}),
+  createTraveller(southTraffic,1.26,15,{mode:"Car",style:"wagon",paint:"#c59d58",lane:1.4}),
+  createTraveller(parisTraffic,.57,17,{mode:"Car",style:"hatch",paint:"#6f78a4",lane:1.5}),
+  createTraveller(localTraffic,1.58,10,{mode:"Car",style:"ute",paint:"#a46560",lane:1.15})
 ];
 const localFootways=townRoads.filter(road=>road.foot&&road.path.some(([x,y])=>x>267&&x<365&&y>180&&y<330));
 const walkRoutes=localFootways.map(road=>makeRoute(road.path)).filter(route=>route.total>10).slice(0,7);
 walkRoutes.unshift(makeRoute([[333,233],[336,247],[340,256],[345,262],[346,274]]));
-const walkers=walkRoutes.flatMap((route,index)=>[.18,1.35].map((phase,i)=>
+const walkers=walkRoutes.flatMap((route,index)=>[.18,.72,1.35].map((phase,i)=>
   createTraveller(route,phase,1.4+(index%3)*.17,{color:["#335d82","#b66b55","#6d7e4d","#826d96"][(index+i)%4],walkPhase:i})
 ));
 const boats=[
@@ -758,6 +788,13 @@ const boats=[
   createTraveller(makeRoute([[246,259],[234,321],[223,389]]),.42,4,{paint:"#db9b74"})
 ];
 for(const actor of [...traffic,...walkers,...boats]) Object.assign(actor,routePose(actor,0));
+const shoreBoats=jetties.map(([a,b],index)=>{
+  const [dockX,y]=a[0]<b[0]?a:b;
+  return {x:Math.min(dockX-2,waterEdge(y+2)-2),y:y+2,heading:-Math.PI/2,
+    dock:{x:dockX+1,y},paint:["#e8a94c","#74cbc0"][index],name:["Yellow launch","Teal launch"][index]};
+});
+const boatStarts=shoreBoats.map(boat=>({...boat}));
+let drivenBoat=null;
 function segmentGap(a,b,p){
   const dx=b.x-a.x, dy=b.y-a.y, span=dx*dx+dy*dy;
   const t=span?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/span)):0;
@@ -804,7 +841,7 @@ function drawBoat(boat){
   ];
   solid(hull,-4,-4,8,6,5,10,"#e5ddc3","#607c7c");
   solid(hull,-6,8,12,3,5,7,"#d7c1a1","#8c6d56");
-  for(const sign of [-1,1]){
+  for(const sign of boat.dock && !boat.moving?[]:[-1,1]){
     poly([headingPoint(p,sign*5,14),headingPoint(p,sign*13,34),headingPoint(p,sign*16,42),headingPoint(p,sign*7,25)],"#dcf2df55");
   }
   mesh(p,hull);
@@ -901,12 +938,24 @@ function draw(){
     }]);
   }
   addAmbientActors(objects);
+  for(const boat of shoreBoats){
+    if(boat===drivenBoat) continue;
+    objects.push([boat,()=>{
+      drawBoat(boat);
+      if(distance(player,boat)<18) label(boat.x,boat.y,2.5,boat.name);
+    }]);
+  }
   if(hunt===1) objects.push([chest,()=>box(chest.x-.6,chest.y-.5,1.2,1,.9,"#e5b149","#845839")]);
   addActivityObjects(objects);
   addForeshoreObjects(objects);
   addTownObjects(objects);
   addMapDetails(objects);
   objects.push([player,()=>{
+    if(player.mode==="Boat"){
+      drawBoat({...player,paint:drivenBoat.paint,dock:drivenBoat.dock,moving});
+      person(player,"#f37854");
+      return;
+    }
     if(player.mode==="Plane"){
       const airframe=[];
       solid(airframe,-3,-15,6,29,39,44,"#f2e4be","#ad8655");
@@ -946,21 +995,34 @@ function action(){
   if(near(riley) && (race<0 || race>=route.length) && player.mode==="Bike"){
     return ["Race Riley",()=>{race=0;raceTime=0;}];
   }
+  if(player.mode==="Boat"){
+    const dock=shoreBoats.find(boat=>distance(player,boat.dock)<9)?.dock;
+    return dock?["Step onto jetty",()=>leaveBoat(dock)]:["Return to a jetty to dock",null];
+  }
   if(player.mode!=="On foot") return ["Hop off",leaveVehicle];
   if(!active && near(bike)) return ["Ride bike",()=>enterVehicle(bike,"Bike")];
   if(!active){
     const parked=carSpawns.map(([item])=>item).filter(near)
       .sort((a,b)=>distance(player,a)-distance(player,b))[0];
     if(parked) return ["Drive "+parked.name,()=>enterVehicle(parked,"Car")];
+    const launch=shoreBoats.find(boat=>distance(player,boat)<6 && distance(player,boat.dock)<7);
+    if(launch) return ["Drive "+launch.name,()=>enterVehicle(launch,"Boat")];
+    const house=houseNearPlayer();
+    if(house) return ["Enter house",openHouse];
   }
   return ["",null];
 }
 function enterVehicle(vehicle,mode){
   if(mode==="Car") drivenCar=vehicle;
+  if(mode==="Boat") drivenBoat=vehicle;
   Object.assign(player,{x:vehicle.x,y:vehicle.y,heading:vehicle.heading||0,mode});
 }
 function leaveVehicle(){
   if(player.mode==="On foot") return;
+  if(player.mode==="Boat"){
+    leaveBoat(drivenBoat.dock);
+    return;
+  }
   const vehicle = player.mode==="Bike"?bike:(drivenCar||car);
   drivenCar=null;
   Object.assign(vehicle,{x:player.x,y:player.y,heading:player.heading});
@@ -976,7 +1038,7 @@ function say(element,value){
 function update(dt){
   const horizontal = Number(pressed.has("right"))-Number(pressed.has("left"));
   const vertical = Number(pressed.has("down"))-Number(pressed.has("up"));
-  const speed=player.mode==="Plane"?42:player.mode==="Car"?(vertical>0?14:44):player.mode==="Bike"?9:4.4;
+  const speed=player.mode==="Plane"?42:player.mode==="Car"?(vertical>0?14:44):player.mode==="Bike"?9:player.mode==="Boat"?21:4.4;
   const turnRate=player.mode==="Car"?2.2:player.mode==="Plane"?2.05:3;
   player.heading=(player.heading||0)+horizontal*dt*turnRate;
   const forward=-vertical;
@@ -986,8 +1048,9 @@ function update(dt){
   const y=Math.max(-950,Math.min(1220,player.y-Math.cos(player.heading)*forward*dt*speed));
   const jetty=jetties.find(([a,b])=>y>=Math.min(a[1],b[1])-1&&y<=Math.max(a[1],b[1])+1);
   const edge=player.mode==="Plane"?-110:jetty&&player.mode==="On foot"?Math.min(jetty[0][0],jetty[1][0]):waterEdge(y)+.5;
-  const x = Math.max(edge,Math.min(2440,player.x+Math.sin(player.heading)*forward*dt*speed));
-  const blocked = (px,py) => player.mode!=="Plane" && hedges.some(([hx,hy,w,d]) =>
+  const nextX=player.x+Math.sin(player.heading)*forward*dt*speed;
+  const x=player.mode==="Boat"?Math.max(-730,Math.min(waterEdge(y)-1.7,nextX)):Math.max(edge,Math.min(2440,nextX));
+  const blocked = (px,py) => player.mode!=="Plane" && player.mode!=="Boat" && hedges.some(([hx,hy,w,d]) =>
     px>hx-3 && px<hx+w+3 && py>hy-3 && py<hy+d+3);
   const target={x:blocked(x,player.y)?player.x:x,y};
   if(blocked(target.x,y)) target.y=player.y;
@@ -1008,6 +1071,7 @@ function update(dt){
     if(distance(player,route[race])<5) race++;
   }
   updateStreet(dt);
+  updateGps(dt);
   say(ui.mode,player.mode);
   say(ui.delivery,["🧺 Drive to the picnic pickup on Paris Road.","🧺 Drive to the foreshore picnic drop-off.","⭐ Picnic delivered!"][delivery]);
   say(ui.race,race>=route.length ? (raceTime<=finishTime?"🏁 You won the bike race!":"🏁 You finished the bike race!") : race>=0 ? "🚲 Checkpoint "+(race+1)+" of "+route.length : "🚲 Ride a bike over to Riley to race.");
@@ -1016,7 +1080,189 @@ function update(dt){
   say(ui.prompt,stopped?"Giving way to pedestrians":message||"Explore the foreshore");
   say(document.querySelector("#action"),message||"Interact");
 }
+const gps = document.getElementById("gps-map").getContext("2d");
+let gpsTimer = 0;
+function updateGps(dt){
+  gpsTimer -= dt;
+  if(gpsTimer > 0) return;
+  gpsTimer = .16;
+  const {width:w,height:h} = gps.canvas;
+  const scale = .55;
+  const mx = x => w/2 + (x-player.x)*scale;
+  const my = y => h/2 + (y-player.y)*scale;
+  gps.fillStyle = "#4c929c";
+  gps.fillRect(0,0,w,h);
+  gps.fillStyle = "#91ad72";
+  gps.beginPath();
+  gps.moveTo(w,0);
+  for(let sy=0;sy<=h;sy+=3) gps.lineTo(mx(waterEdge(player.y+(sy-h/2)/scale)),sy);
+  gps.lineTo(w,h);
+  gps.fill();
+  gps.beginPath();
+  const cx=Math.floor(player.x/chunkSize), cy=Math.floor(player.y/chunkSize);
+  for(let x=cx-4;x<=cx+4;x++){
+    for(let y=cy-4;y<=cy+4;y++){
+      for(const road of roadChunks.get(x+","+y)||[]){
+        if(road.foot) continue;
+        gps.moveTo(mx(road.x),my(road.y));
+        gps.lineTo(mx(road.tx),my(road.ty));
+      }
+    }
+  }
+  gps.strokeStyle="#fff1cc";
+  gps.lineWidth=2;
+  gps.stroke();
+  for(const boat of shoreBoats){
+    gps.fillStyle=boat.paint;
+    gps.fillRect(mx(boat.dock.x)-3,my(boat.dock.y)-3,6,6);
+  }
+  gps.save();
+  gps.translate(w/2,h/2);
+  gps.rotate(player.heading||0);
+  gps.beginPath();
+  gps.moveTo(0,-11);
+  gps.lineTo(8,8);
+  gps.lineTo(0,5);
+  gps.lineTo(-8,8);
+  gps.closePath();
+  gps.fillStyle="#1769bf";
+  gps.strokeStyle="#fff";
+  gps.lineWidth=2;
+  gps.fill();
+  gps.stroke();
+  gps.restore();
+  gps.font="bold 17px system-ui";
+  gps.fillStyle="#fff";
+  gps.fillText("N",w-22,23);
+}
+
+const phone=document.getElementById("quests");
+const phoneIcon=document.getElementById("phone-icon");
+function setPhone(open){
+  phone.hidden=!open;
+  phoneIcon.hidden=open;
+}
+document.getElementById("phone-minimize").onclick=()=>setPhone(false);
+phoneIcon.onclick=()=>setPhone(true);
+let phoneSwipe=null;
+phone.addEventListener("pointerdown",event=>{
+  if(event.target.closest("button")) return;
+  phoneSwipe={id:event.pointerId,x:event.clientX,y:event.clientY};
+  phone.setPointerCapture(event.pointerId);
+});
+phone.addEventListener("pointerup",event=>{
+  if(phoneSwipe?.id!==event.pointerId) return;
+  if(event.clientY-phoneSwipe.y>45 && Math.abs(event.clientX-phoneSwipe.x)<75) setPhone(false);
+  phoneSwipe=null;
+});
+phone.addEventListener("lostpointercapture",()=>{phoneSwipe=null;});
+const mapInfo=document.getElementById("map-info");
+setTimeout(()=>{mapInfo.open=false;},5000);
+
+function leaveBoat(dock){
+  Object.assign(drivenBoat,{
+    x:Math.min(dock.x-3,waterEdge(dock.y+2)-2),y:dock.y+2,heading:-Math.PI/2
+  });
+  Object.assign(player,{x:dock.x,y:dock.y,mode:"On foot"});
+  drivenBoat=null;
+  pressed.clear();
+}
+
+function houseNearPlayer(){
+  const cx=Math.floor(player.x/chunkSize), cy=Math.floor(player.y/chunkSize);
+  for(let x=cx-1;x<=cx+1;x++){
+    for(let y=cy-1;y<=cy+1;y++){
+      for(const building of townChunks.get(x+","+y)||[]){
+        if(!building.house || distance(player,building)>22) continue;
+        const wall=building.outline.some(([ax,ay],index)=>{
+          const [bx,by]=building.outline[(index+1)%building.outline.length];
+          return segmentGap({x:ax,y:ay},{x:bx,y:by},player)<4.5;
+        });
+        if(wall) return building;
+      }
+    }
+  }
+  return null;
+}
+
+const houseDialog=document.getElementById("house");
+const tv=document.getElementById("tv-game").getContext("2d");
+const tvFlap=document.getElementById("tv-flap");
+const glide={y:140,velocity:0,time:0,score:0,ring:null,running:false};
+function openHouse(){
+  pressed.clear();
+  Object.assign(glide,{y:140,velocity:0,time:0,score:0,ring:null,running:false});
+  tvFlap.textContent="Play";
+  houseDialog.showModal();
+  drawTv();
+}
+document.getElementById("house-exit").onclick=()=>houseDialog.close();
+houseDialog.addEventListener("close",()=>{
+  glide.running=false;
+  pressed.clear();
+});
+function flap(){
+  if(!glide.running){
+    Object.assign(glide,{y:140,time:0,score:0,ring:{x:460,y:123},running:true});
+    tvFlap.textContent="Flap";
+  }
+  glide.velocity=-153;
+}
+tvFlap.onclick=flap;
+tv.canvas.onclick=flap;
+houseDialog.addEventListener("keydown",event=>{
+  if(event.code!=="Space" && event.code!=="ArrowUp") return;
+  event.preventDefault();
+  if(!event.repeat) flap();
+});
+function advanceTv(dt){
+  if(!glide.running) return;
+  glide.time+=dt;
+  glide.velocity+=350*dt;
+  glide.y+=glide.velocity*dt;
+  const ring=glide.ring;
+  ring.x-=dt*(125+Math.min(50,glide.score*3));
+  if(!ring.collected && Math.hypot(ring.x-94,ring.y-glide.y)<20){
+    ring.collected=true;
+    glide.score++;
+  }
+  if(ring.x<-25) glide.ring={x:470,y:65+Math.random()*135};
+  if(glide.y<12 || glide.y>234){
+    glide.running=false;
+    tvFlap.textContent="Play again";
+  }
+  drawTv();
+}
+function drawTv(){
+  tv.fillStyle="#91d5df";
+  tv.fillRect(0,0,480,270);
+  tv.fillStyle="#3b8192";
+  tv.fillRect(0,246,480,24);
+  tv.fillStyle="#5ca5ab";
+  for(let x=0;x<480;x+=32) tv.fillRect(x,254+(x%13),19,2);
+  if(glide.ring && !glide.ring.collected){
+    tv.strokeStyle="#9e5e24";
+    tv.lineWidth=4;
+    tv.beginPath();
+    tv.arc(glide.ring.x,glide.ring.y,19,0,2*Math.PI);
+    tv.stroke();
+  }
+  tv.fillStyle="#fff5de";
+  tv.beginPath();
+  tv.ellipse(94,glide.y,15,9,-.13,0,2*Math.PI);
+  tv.fill();
+  tv.fillStyle="#344d59";
+  tv.beginPath();
+  tv.ellipse(91,glide.y+3,9,4,-.35,0,2*Math.PI);
+  tv.fill();
+  tv.fillStyle="#143630";
+  tv.font="bold 17px system-ui";
+  tv.fillText("Estuary Glide  ·  Rings "+glide.score,15,24);
+  if(!glide.running) tv.fillText("Tap to flap. Fly through the rings.",115,120);
+}
+
 addEventListener("keydown",event=>{
+  if(houseDialog.open) return;
   if(keys[event.key.toLowerCase()]){
     event.preventDefault();
     pressed.add(keys[event.key.toLowerCase()]);
@@ -1025,7 +1271,7 @@ addEventListener("keydown",event=>{
 });
 addEventListener("keyup",event=>pressed.delete(keys[event.key.toLowerCase()]));
 addEventListener("blur",()=>pressed.clear());
-document.getElementById("touch").addEventListener("contextmenu",event=>event.preventDefault());
+document.addEventListener("contextmenu",event=>event.preventDefault());
 document.querySelectorAll("[data-key]").forEach(button=>{
   button.addEventListener("touchstart",event=>event.preventDefault(),{passive:false});
   button.addEventListener("pointerdown",event=>{
@@ -1045,6 +1291,7 @@ document.getElementById("reset").onclick=()=>{
   Object.assign(bike,{x:335,y:241,heading:0});
   for(const [item,x,y] of carSpawns) Object.assign(item,{x,y,heading:0});
   drivenCar=null;
+  shoreBoats.forEach((boat,index)=>Object.assign(boat,boatStarts[index]));
   pressed.clear();
   streetScan=0;
   updateStreet(0);
@@ -1055,9 +1302,13 @@ draw();
 document.getElementById("startup").hidden=true;
 let previous = performance.now();
 function frame(now){
-  update(Math.min(.05,(now-previous)/1000));
+  const dt=Math.min(.05,(now-previous)/1000);
   previous=now;
-  draw();
+  if(houseDialog.open) advanceTv(dt);
+  else{
+    update(dt);
+    draw();
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
