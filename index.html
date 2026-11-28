@@ -97,7 +97,8 @@ const carSpawns=[
   [car,347,268],
   [{style:"ute",paint:"#b26b54",name:"Copper ute"},355,272],
   [{style:"wagon",paint:"#597b94",name:"Blue wagon"},349,279],
-  [{vehicleMode:"Bus",name:"Australind bus"},358,282]
+  [{vehicleMode:"Bus",name:"Australind bus"},358,282],
+  [{style:"coupe",paint:"#365a99",name:"Blue sports coupe"},362,272]
 ];
 for(const [item,x,y] of carSpawns) Object.assign(item,{x,y,heading:0});
 let drivenCar=null;
@@ -350,9 +351,27 @@ function person(p,color,name){
     faces.push(["#3c332c",[.94,-1.48,21.25+bob],[.43,-1.49,21.25+bob],[.53,-1.5,21.46+bob]]);
     faces.push([shade(skin,1.13),[-.28,-1.46,20.3+bob],[.28,-1.46,20.3+bob],[0,-1.82,20.48+bob],[0,-1.48,21.1+bob]]);
   }
+  if(close){
+    const thread=shade(color,.64);
+    faces.push([thread,[-1.27,1.18,17.75+bob],[1.27,1.18,17.75+bob],
+      [.81,1.27,17.52+bob],[-.81,1.27,17.52+bob]]);
+    for(const side of [-1,1]){
+      const x=side*1.55, y=side*swing*2.5*.53-.35;
+      faces.push([shade(pants,.9),[x-.60,y+.96,6.45],[x+.65,y+.96,6.45],
+        [x+.56,y+.97,6.57],[x-.52,y+.97,6.57]]);
+    }
+  }
   if(close && isPlayer){
     solid(faces,-2.04,1.08,4.08,1.36,11.4+bob,16.3+bob,"#727b4d","#565b3c");
     solid(faces,-1.78,2.27,3.56,.36,12.0+bob,14.18+bob,"#808462","#65694d");
+    // Canvas seams, a zipper and webbing give the pack depth at chase-camera distance.
+    for(const x of [-1.45,1.45]){
+      solid(faces,x-.16,2.62,.32,.10,12.15+bob,15.8+bob,"#969879","#424b36");
+      solid(faces,x-.34,2.73,.68,.12,13.1+bob,13.55+bob,"#a8a99a","#4e564b");
+    }
+    faces.push(["#404a3a",[-1.44,2.65,14.56+bob],[1.44,2.65,14.56+bob],
+      [1.44,2.65,14.69+bob],[-1.44,2.65,14.69+bob]]);
+    solid(faces,-.74,2.17,1.48,.35,15.24+bob,15.79+bob,"#c7ad78","#8f7952");
     for(const x of [-1.42,1.42]){
       faces.push(["#454c39",[x-.13,-1.34,12.6+bob],[x+.13,-1.34,12.6+bob],
         [x+.2,-1.62,17.25+bob],[x-.2,-1.62,17.25+bob]]);
@@ -362,8 +381,11 @@ function person(p,color,name){
   if(name) label(p.x,p.y,2.4,name);
 }
 const vehicleModels=new Map();
-function carBody(model,paint){
-  const sections=[
+function carBody(model,paint,coupe){
+  const sections=coupe?[
+    [-19.2,7.7,4.1,5.7],[-17,9.6,3.8,7.1],[-9,10.4,3.45,8.4],
+    [5.7,10.2,3.65,8.8],[14.7,10.55,4.15,9.2],[18.8,8.9,4.8,8.1]
+  ]:[
     [-18,7.2,5.1,7.1],[-15.4,9.2,4.6,8.8],[-8.5,9.6,4.0,10],
     [7.8,9.6,4.0,10],[14.4,9.25,4.6,9.4],[17.2,8.2,5.1,8.1]
   ];
@@ -383,6 +405,7 @@ function vehicle(p,mode){
   shadow(p,mode==="Bus"?13:mode==="Car"?11:3,mode==="Bus"?43:mode==="Car"?20:11);
   const style=p.style||"hatch", paint=p.paint||"#bfc4bd";
   if(mode==="Car") p.lengthScale=style==="wagon"?1.18:style==="ute"?1.12:1;
+  const coupe=style==="coupe";
   const key=mode==="Car"?mode+style+paint:mode;
   const cached=vehicleModels.get(key);
   if(cached){mesh(p,cached);return;}
@@ -402,24 +425,29 @@ function vehicle(p,mode){
       solid(model,x,y,3,10,0,8,"#4c5452","#282e2d");
     }
   }else if(mode==="Car"){
-    carBody(model,paint);
+    carBody(model,paint,coupe);
     for(const x of [-9,7]) for(const y of [-12,8]){
       ellipsoid(model,x+1.5,y+3,3.8,1.9,3.6,3.65,"#313938",10);
       ellipsoid(model,x+(x<0?.3:2.8),y+3,3.8,.75,2.25,2.25,"#929d99",8);
     }
-    const a=[-7,-9,10], b=[7,-9,10], c=[7,10,10], d=[-7,10,10];
-    const rear=p.style==="ute"?0:p.style==="wagon"?9:5;
-    const roof=p.style==="wagon"?18:16;
+    const belt=coupe?8.1:10;
+    const a=[-7,-9,belt], b=[7,-9,belt], c=[7,10,belt], d=[-7,10,belt];
+    const rear=p.style==="ute"?0:p.style==="wagon"?9:coupe?3.5:5;
+    const roof=p.style==="wagon"?18:coupe?13.2:16;
     const e=[-6,-4,roof], f=[6,-4,roof], g=[6,rear,roof], h=[-6,rear,roof];
     if(p.style==="ute") solid(model,-7,4,14,10,10,10.2,"#493f39","#5c4d42");
     model.push(["#728e96",a,b,f,e],["#567078",b,c,g,f],["#667f86",c,d,h,g],
       ["#50666c",d,a,e,h],[shade(paint,1.1),e,f,g,h]);
-    model.push(["#172324",[-6.6,16.82,6.35],[6.6,16.82,6.35],[5.95,17.23,7.04],[-5.95,17.23,7.04]],
+    if(!coupe) model.push(["#172324",[-6.6,16.82,6.35],[6.6,16.82,6.35],[5.95,17.23,7.04],[-5.95,17.23,7.04]],
       ["#d9e1df",[-5.4,16.83,7.28],[5.4,16.83,7.28],[4.5,17.19,7.59],[-4.5,17.19,7.59]]);
-    model.push(["#252d2d",[-4.8,-18.04,5.3],[4.8,-18.04,5.3],[4.8,-18.04,6.8],[-4.8,-18.04,6.8]],
+    if(!coupe) model.push(["#252d2d",[-4.8,-18.04,5.3],[4.8,-18.04,5.3],[4.8,-18.04,6.8],[-4.8,-18.04,6.8]],
       ["#c5c9bc",[-2.2,17.25,5.25],[2.2,17.25,5.25],[2.2,17.25,6.35],[-2.2,17.25,6.35]],
       ["#9db2b4",[-6.7,-8.92,10.2],[6.7,-8.92,10.2],[5.8,-4.14,roof-.2],[-5.8,-4.14,roof-.2]]);
     for(const side of [-1,1]){
+      if(coupe){
+        solid(model,side*8.4-.65,-6.8,1.3,1.9,9.4,10.1,shade(paint,1.08),"#35454e");
+        continue;
+      }
       const sx=side*9.52;
       solid(model,sx-.75,-7.15,1.5,2.2,10.1,11.15,shade(paint,1.05),"#364341");
       const x=side*9.57;
@@ -428,7 +456,20 @@ function vehicle(p,mode){
       model.push(["#353f40",[side*7.015,-.6,10.1],[side*7.015,.65,10.1],
         [side*6.025,.65,roof-.06],[side*6.025,-.6,roof-.06]]);
     }
-    for(const x of [-7,4]){
+    if(coupe){
+      // Rear diffuser, continuous light bar and sculpted side intakes.
+      model.push(["#1c262a",[-8,18.87,5.08],[8,18.87,5.08],[7,18.87,6.05],[-7,18.87,6.05]],
+        ["#9c342d",[-8.25,18.92,6.75],[8.25,18.92,6.75],[8,18.92,7.55],[-8,18.92,7.55]],
+        ["#ff8672",[-7.4,18.94,7.13],[7.4,18.94,7.13],[7.4,18.94,7.42],[-7.4,18.94,7.42]],
+        ["#b8c7ce",[-2.4,18.96,5.8],[2.4,18.96,5.8],[2.4,18.96,6.67],[-2.4,18.96,6.67]],
+        ["#25313a",[-5,-19.25,4.28],[5,-19.25,4.28],[5,-19.25,5.3],[-5,-19.25,5.3]]);
+      for(const side of [-1,1]){
+        const x=side*10.25;
+        model.push(["#26333b",[x,1,5.2],[x,7.2,5],[x,8.3,7.1],[x,4,6.7]],
+          ["#d8e6eb",[side*4.6,-19.27,5.23],[side*7.2,-19.27,5.23],[side*7.2,-19.27,5.53],[side*4.7,-19.27,5.63]]);
+      }
+    }
+    if(!coupe) for(const x of [-7,4]){
       model.push(["#9e453c",[x,17.1,6],[x+3,17.1,6],[x+3,17.1,8],[x,17.1,8]]);
       model.push(["#fbf1cd",[x,-18.08,6],[x+3,-18.08,6],[x+3,-18.08,7.2],[x,-18.08,7.2]]);
     }
