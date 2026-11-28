@@ -68,7 +68,7 @@ header{z-index:1;left:0;right:0;display:grid;place-items:center;pointer-events:n
 <button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p><button id="sprite-book">Sprite journal <span id="sprite-count">0/50</span></button><button id="wardrobe-open">Wardrobe</button><button id="visual-quality" aria-pressed="true">Graphics: Sharp</button></section>
 <div class="panel" id="hint" aria-live="polite"><span id="prompt">Explore the foreshore.</span><small id="keys"><br>W / ↑ forward · S / ↓ reverse · A D / ← → turn · E to interact · Space to jump</small></div>
 <div id="touch"><div id="pad"><button data-key="up" aria-label="Move forward">▲</button><button data-key="left" aria-label="Turn left">◀</button><button data-key="down" aria-label="Move backward">▼</button><button data-key="right" aria-label="Turn right">▶</button></div></div><div id="actions"><button id="action">Interact</button><button id="jump" hidden>Jump</button><button id="reset">Return to park</button></div>
-<aside id="gps" aria-label="GPS overview"><canvas id="gps-map" width="240" height="180" aria-label="Zoomed-out map centred on your location"></canvas><details id="map-info" open><summary aria-label="Map data information">ⓘ</summary><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap · ODbL</a></details></aside>
+<aside id="gps" aria-label="GPS overview"><canvas id="gps-map" width="240" height="180" aria-label="Zoomed-out map centred on your location"></canvas><details id="map-info" open><summary aria-label="Map data information">ⓘ</summary><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap · ODbL</a> · <a href="https://open-meteo.com/en/docs/elevation-api" target="_blank" rel="noopener">Elevation: Copernicus DEM via Open-Meteo</a></details></aside>
 <dialog id="house"><div class="room"><div class="room-wall"><h2>Living room</h2><p>Play Estuary Glide on the TV.</p></div><div class="tv"><canvas id="tv-game" width="480" height="270" aria-label="Estuary Glide game"></canvas><button id="tv-flap">Play</button></div><button id="house-exit">Go outside</button></div></dialog>
 <dialog id="wardrobe" aria-labelledby="wardrobe-title" style="width:min(360px,92vw);background:#173a36;color:#fff5df;border:1px solid #97b8a4;border-radius:18px;padding:18px">
 <form method="dialog"><h2 id="wardrobe-title">Wardrobe</h2><div id="wardrobe-options" style="display:grid;gap:10px;margin-bottom:16px"></div><button>Done</button></form>
@@ -77,7 +77,7 @@ header{z-index:1;left:0;right:0;display:grid;place-items:center;pointer-events:n
 <h2 id="sprite-title">Estuary Sprites</h2>
 <p id="sprite-note" role="status"></p>
 <ul id="sprite-list"></ul>
-<canvas id="sprite-portraits" width="480" height="145" aria-label="Sprites in this encounter" hidden></canvas>
+<canvas id="sprite-portraits" width="480" height="245" aria-label="Sprites in this encounter" hidden></canvas>
 <p id="sprite-score" hidden></p>
 <label id="sprite-team" hidden>Your Sprite <select id="sprite-pick"></select></label>
 <div id="sprite-controls">
@@ -163,11 +163,29 @@ function chaseDistance(){
 function chaseHeight(){
   return player.mode==="Car"?43:player.mode==="On foot"?42:player.mode==="Plane"?99:49;
 }
+const terrainGrid={"w":34,"h":32,"x0":80,"y0":-1040,"step":76,"values":[0,0,0,0,0,0,1,7,31,26,25,32,36,36,33,14,14,14,12,10,8,8,5,4,7,3,2,6,7,8,8,8,9,10,0,0,0,0,0,0,2,6,21,20,24,32,35,31,22,12,12,10,8,7,8,7,3,4,6,2,5,7,8,7,7,8,8,8,0,0,0,0,0,0,3,6,16,21,27,29,29,21,15,12,13,10,7,6,8,7,2,5,4,6,7,7,7,6,7,7,8,9,0,0,0,0,0,0,3,7,13,16,18,17,14,11,10,12,13,10,9,8,10,7,2,6,4,6,7,6,6,6,7,9,9,10,0,0,0,0,0,0,3,5,11,15,16,18,18,14,10,12,11,8,8,10,9,6,3,3,5,7,6,6,6,7,8,9,10,10,0,0,0,0,0,0,4,6,11,15,22,27,27,25,17,16,12,6,6,10,10,5,2,4,3,5,4,6,7,8,9,10,11,11,0,0,0,0,0,0,4,6,11,15,22,27,27,25,17,16,12,6,6,10,10,5,2,4,3,5,4,6,7,8,9,10,11,11,0,0,0,0,0,0,3,5,11,16,21,23,23,23,18,13,8,5,6,10,9,7,3,5,2,3,7,9,10,14,13,12,13,12,0,0,0,0,0,0,2,5,11,16,20,21,24,26,22,10,7,6,8,10,9,7,3,4,2,6,12,10,13,15,15,12,13,13,0,0,0,0,0,0,2,4,13,17,19,24,27,34,29,16,10,8,7,10,9,7,6,3,2,9,11,12,14,14,14,12,14,16,0,0,0,0,0,1,3,6,13,18,21,24,25,29,27,14,8,7,7,7,6,7,5,2,2,12,11,13,13,15,14,13,14,18,0,0,0,0,0,1,3,7,14,20,23,21,17,15,14,7,5,7,7,6,5,7,3,2,2,10,14,14,16,15,14,14,13,17,0,0,0,0,0,1,7,11,14,16,16,14,10,9,8,8,8,9,7,7,6,5,5,2,7,12,15,15,15,16,17,18,18,18,0,0,0,0,0,2,8,11,12,12,13,14,15,15,14,7,7,9,7,8,7,5,3,5,9,13,19,18,16,17,18,18,18,18,0,0,0,0,0,2,8,10,15,19,23,24,25,28,27,11,8,6,5,7,9,6,8,7,12,15,17,18,16,16,15,16,19,18,0,0,0,0,1,2,6,8,15,21,26,27,30,35,32,15,8,7,7,6,5,0,3,7,6,14,16,17,15,15,15,16,18,19,0,0,0,0,3,4,6,7,17,23,26,26,25,23,16,8,7,8,10,6,6,1,1,5,2,3,16,17,14,15,16,15,17,20,0,0,0,1,4,5,6,8,17,17,14,14,12,10,7,10,8,8,10,10,9,5,2,3,3,3,14,14,13,14,14,18,18,18,0,0,0,1,5,5,5,10,20,22,19,16,14,11,9,11,9,13,14,11,11,9,2,2,5,7,15,13,13,14,13,14,16,19,0,0,0,1,3,5,6,13,21,28,31,29,27,22,18,11,8,8,8,7,8,3,1,1,6,10,13,13,14,14,14,14,14,15,0,0,0,2,3,6,7,9,23,30,38,39,37,33,29,14,8,8,6,5,3,1,1,2,5,12,13,13,14,13,13,13,13,14,0,0,0,3,5,5,6,7,20,22,28,32,32,30,25,11,7,6,6,2,3,1,1,2,10,15,13,13,14,14,14,13,13,13,0,0,0,3,4,7,6,7,15,14,12,16,17,19,18,9,8,7,5,2,1,1,1,4,12,13,13,14,13,13,13,13,13,13,0,0,0,3,4,7,6,8,13,10,9,9,8,8,10,9,9,7,5,1,0,1,2,9,13,13,14,15,13,13,13,13,15,15,0,0,0,2,4,7,7,11,21,19,15,11,9,6,6,8,7,7,5,1,2,8,11,12,13,13,14,13,13,14,13,13,17,14,0,0,0,2,4,10,10,14,26,25,21,15,9,7,6,10,4,5,2,2,3,13,16,14,13,13,13,12,13,13,13,13,13,13,0,0,0,4,7,11,11,15,29,30,30,25,16,12,9,10,5,2,2,1,1,14,16,14,13,12,12,11,12,13,12,13,14,15,0,0,2,4,7,11,11,17,26,26,28,25,21,16,10,8,7,4,2,2,1,13,15,13,12,12,11,12,12,13,13,13,13,13,0,0,2,3,5,8,13,18,26,25,24,24,21,17,13,12,9,10,5,2,2,5,13,14,13,12,11,12,12,12,12,13,14,14,0,0,3,3,5,9,13,19,29,30,27,25,21,19,15,9,8,9,8,2,1,1,6,14,12,12,12,12,13,13,12,13,13,14,0,0,4,8,8,11,14,21,31,31,28,25,20,14,10,10,9,9,10,3,2,0,4,16,14,12,11,12,12,13,13,13,14,14,0,0,10,11,11,13,17,21,30,28,27,26,19,10,7,6,6,5,4,2,0,0,2,9,16,12,11,12,12,12,12,14,13,14]};
+let terrainEye=0,eyeGroundX=NaN,eyeGroundY=NaN;
+function heightAt(x,y){
+  if(x<660&&x<=waterEdge(y)) return 0;
+  const grid=terrainGrid;
+  const u=Math.max(0,Math.min(grid.w-1.0001,(x-grid.x0)/grid.step));
+  const v=Math.max(0,Math.min(grid.h-1.0001,(y-grid.y0)/grid.step));
+  const i=Math.floor(u),j=Math.floor(v),at=i+j*grid.w;
+  const dx=u-i, dy=v-j, h=grid.values;
+  const low=h[at]+(h[at+1]-h[at])*dx;
+  const high=h[at+grid.w]+(h[at+grid.w+1]-h[at+grid.w])*dx;
+  const coast=x<660?Math.min(1,Math.max(0,(x-waterEdge(y))/20)):1;
+  return (low+(high-low)*dy)*.85*coast;
+}
 function cameraPoint(x,y,z=0){
+  if(camera.x!==eyeGroundX || camera.y!==eyeGroundY){
+    eyeGroundX=camera.x;eyeGroundY=camera.y;
+    terrainEye=heightAt(camera.x,camera.y);
+  }
   const east=x-camera.x, south=y-camera.y;
   const dx=east*camera.cos+south*camera.sin;
   const dy=-east*camera.sin+south*camera.cos-chaseDistance()*camera.scale;
-  const dz=z-chaseHeight()*camera.scale;
+  const dz=z+heightAt(x,y)-terrainEye-chaseHeight()*camera.scale;
   return [dx,-dy*sinTilt+dz*cosTilt,-dy*cosTilt-dz*sinTilt];
 }
 function screenPoint([x,y,depth]){
@@ -381,7 +399,7 @@ function drawLitModel(p,faces){
   const angle=p.heading||0, sin=Math.sin(angle), cos=Math.cos(angle);
   const behind=chaseDistance()*camera.scale;
   const eyeX=camera.x-camera.sin*behind,eyeY=camera.y+camera.cos*behind;
-  const eyeZ=chaseHeight()*camera.scale;
+  const eyeZ=terrainEye+chaseHeight()*camera.scale;
   let offset=0;
   for(const vertex of triangles){
     const q=placed.get(vertex);
@@ -397,7 +415,7 @@ function drawLitModel(p,faces){
     for(const channel of vertex.tint) data[offset++]=channel;
     data[offset++]=eyeX-q.world[0];
     data[offset++]=eyeY-q.world[1];
-    data[offset++]=eyeZ-q.world[2];
+    data[offset++]=eyeZ-q.world[2]-heightAt(q.world[0],q.world[1]);
   }
   gl.viewport(0,layer.height-renderH,renderW,renderH);
   gl.clearColor(0,0,0,0);
@@ -1007,8 +1025,14 @@ const pickup = {x:478,y:341};
 const picnic = {x:340,y:255};
 let delivery = 0;
 function waterEdge(y){
-  const i=shore.findIndex(([,py])=>py>=y);
-  if(i<=0) return shore[i===0?0:shore.length-1][0];
+  let lo=0,hi=shore.length-1;
+  if(y<=shore[0][1]) return shore[0][0];
+  if(y>=shore[hi][1]) return shore[hi][0];
+  while(hi-lo>1){
+    const mid=(lo+hi)>>1;
+    if(shore[mid][1]<y) lo=mid; else hi=mid;
+  }
+  const i=hi;
   const [x0,y0]=shore[i-1], [x1,y1]=shore[i];
   return x0+(x1-x0)*(y-y0)/(y1-y0);
 }
@@ -1090,7 +1114,7 @@ for(const road of townRoads){
     const length=Math.hypot(tx-x,ty-y);
     if(!length) continue;
     const breaks=[0,1];
-    const divisions=Math.ceil(length/75);
+    const divisions=Math.ceil(length/28);
     for(let n=1;n<divisions;n++) breaks.push(n/divisions);
     breaks.sort((a,b)=>a-b);
     const pieces=breaks.length-1;
@@ -1508,9 +1532,35 @@ function drawEstuarySurface(horizon){
     }
   }
 }
+function drawTerrainGround(){
+  const stride=sharpGraphics?24:34;
+  const originX=Math.floor(camera.x/stride),originY=Math.floor(camera.y/stride);
+  const patches=[];
+  for(let row=originY-16;row<=originY+16;row++){
+    const y=row*stride, ty=y+stride;
+    const edge=waterEdge(y)+2, endEdge=waterEdge(ty)+2;
+    for(let col=originX-16;col<=originX+16;col++){
+      const x=col*stride, tx=x+stride;
+      if(tx<Math.max(edge,endEdge)) continue;
+      const [side,,depth]=cameraPoint(x+stride/2,y+stride/2,0);
+      if(depth<-stride||depth>390||Math.abs(side)>Math.max(0,depth)*width/(2*focal)+stride) continue;
+      const a=[Math.max(x,edge),y],b=[tx,y],c=[tx,ty],d=[Math.max(x,endEdge),ty];
+      patches.push({points:[a,b,c,d],depth});
+    }
+  }
+  patches.sort((a,b)=>b.depth-a.depth);
+  for(const {points:[a,b,c,d]} of patches){
+    const h0=heightAt(...a),h1=heightAt(...b),h2=heightAt(...d);
+    const t=(h0-h1)*.026+(h2-h0)*.039;
+    const ground=shade("#91aa71",Math.max(.82,Math.min(1.19,1+t)));
+    poly([a,b,d],ground);
+    poly([b,c,d],ground);
+  }
+}
 function drawForeshore(){
   poly([...shore,[2700,1450],[2700,-1200]],"#d9ca9c");
   poly([...shore.map(([x,y])=>[x+2,y]),[2700,1450],[2700,-1200]],"#94b66d");
+  drawTerrainGround();
   if(sharpGraphics && camera.x<490){
     const cellX=Math.floor(camera.x/2.8),cellY=Math.floor(camera.y/2.8);
     for(let gy=cellY-12;gy<=cellY+12;gy++){
@@ -1996,7 +2046,7 @@ function refreshSpriteJournal(){
 }
 function openSpriteDialog(sprite=null){
   pressed.clear();
-  encounter=sprite;duel=null;
+  encounter=sprite;duel=null;duelMotion=null;
   refreshSpriteJournal();
   spriteUI.title.textContent=sprite?sprite.name+" · "+sprite.kind:"Estuary Sprites";
   spriteUI.list.hidden=!!sprite;
@@ -2022,12 +2072,109 @@ function updateSpriteTeam(){
   spriteUI.team.hidden=!available.length;
   spriteUI.challenge.hidden=!available.length;
 }
+const arenaModels=new Map();
+function spriteModel(sprite){
+  if(arenaModels.has(sprite.name)) return arenaModels.get(sprite.name);
+  const faces=[], {paint,trim,form}=sprite;
+  const wings=form===4||form===7||form===9;
+  const tall=form===5||form===7;
+  const z=tall?.88:.54;
+  ellipsoid(faces,0,.13,z,.44,.65,tall?.64:.40,paint,10);
+  ellipsoid(faces,0,-.43,tall?1.38:.76,.34,.34,.31,paint,10);
+  for(const side of [-1,1]){
+    ellipsoid(faces,side*.25,.16,.19,.16,.26,.16,trim,7);
+    ellipsoid(faces,side*.27,-.57,tall?1.43:.83,.081,.077,.09,"#182b2c",6);
+    ellipsoid(faces,side*.295,-.617,tall?1.46:.86,.025,.025,.025,"#fff5db",5);
+    if(wings){
+      limb(faces,[side*.83,.38,z+.12],[side*.24,.07,z+.12],.10,.31,trim);
+    }else if(form===2){
+      limb(faces,[side*.68,-.45,.46],[side*.27,-.14,.37],.18,.11,trim);
+      ellipsoid(faces,side*.69,-.54,.52,.17,.20,.12,paint,7);
+    }else{
+      const height=form===5?.37:form===3?.18:.095;
+      ellipsoid(faces,side*.16,-.40,(tall?1.63:1.01)+height*.45,.083,.092,height,trim,7);
+    }
+  }
+  if(form===0||form===6){
+    for(let i=0;i<4;i++) limb(faces,[0,-.12+i*.24,z+.26],[0,-.1+i*.24,z+.63-i*.045],.15,.018,trim);
+  }
+  if(form===1||form===3||form===5||form===6){
+    limb(faces,[0,1.11,.29],[0,.53,z-.07],.055,.19,trim);
+  }
+  if(form===4||form===7) limb(faces,[0,-1.07,tall?1.34:.71],[0,-.69,tall?1.38:.74],.035,.15,trim);
+  arenaModels.set(sprite.name,faces);
+  return faces;
+}
+let duelMotion=null;
+function arenaPoint(x,y,z){
+  const depth=y+7.2;
+  return [240+x*325/depth,92+(2.45-z-y*.27)*325/depth,depth];
+}
+function arenaPoly(g,points,color){
+  g.beginPath();
+  points.forEach(([x,y,z],i)=>{
+    const [sx,sy]=arenaPoint(x,y,z);
+    if(i===0) g.moveTo(sx,sy); else g.lineTo(sx,sy);
+  });
+  g.closePath();g.fillStyle=color;g.fill();
+}
+function drawArenaSprite(g,sprite,x,y,heading,move,phase){
+  const pulse=Math.sin(phase*Math.PI);
+  const yaw=heading+(move==="guard"?.22*pulse:0);
+  const z=move==="dash"?pulse*.34:move==="focus"?pulse*.20:0;
+  if(move==="dash") x+=Math.sin(heading)*pulse*.85;
+  const shadow=arenaPoint(x,y,0);
+  g.beginPath();g.ellipse(shadow[0],shadow[1],33*(1-z*.48),10,0,0,Math.PI*2);
+  g.fillStyle="#1e343165";g.fill();
+  const cos=Math.cos(yaw),sin=Math.sin(yaw);
+  const faces=spriteModel(sprite).map(([color,...points])=>{
+    const placed=points.map(([px,py,pz])=>[x+px*cos-py*sin,y+px*sin+py*cos,z+pz]);
+    return {color,placed,depth:placed.reduce((sum,p)=>sum+p[1],0)/placed.length};
+  });
+  faces.sort((a,b)=>b.depth-a.depth);
+  for(const {color,placed} of faces) arenaPoly(g,placed,color);
+  const [sx,sy]=arenaPoint(x,y,.8+z);
+  if(move==="guard"){
+    g.beginPath();g.ellipse(sx,sy,33+pulse*8,42,0,0,Math.PI*2);
+    g.lineWidth=2;g.strokeStyle="rgba(144,227,239,"+pulse*.92+")";g.stroke();
+  }
+  if(move==="focus"){
+    for(let i=0;i<9;i++){
+      const a=i*Math.PI*2/9+phase*2.3;
+      g.beginPath();g.arc(sx+Math.cos(a)*(23+12*pulse),sy+Math.sin(a)*(26+9*pulse),2,0,Math.PI*2);
+      g.fillStyle="#ecd799";g.fill();
+    }
+  }
+}
 function drawSpriteDuel(){
+  if(!encounter) return;
   const g=spriteUI.portraits.getContext("2d");
-  g.fillStyle="#294d45";g.fillRect(0,0,480,145);
-  g.fillStyle="#597564";g.fillRect(0,101,480,44);
-  if(duel) paintSprite(g,duel.friend,128,86,39);
-  paintSprite(g,encounter,duel?350:240,86,39,!!duel);
+  const sky=g.createLinearGradient(0,0,0,245);
+  sky.addColorStop(0,"#31586a");sky.addColorStop(.65,"#9bbcac");sky.addColorStop(1,"#bdab83");
+  g.fillStyle=sky;g.fillRect(0,0,480,245);
+  arenaPoly(g,[[-6,-2.9,0],[6,-2.9,0],[10,13,0],[-10,13,0]],"#a9a38b");
+  for(let row=-2;row<=6;row++){
+    for(let col=-6;col<6;col++){
+      const x=col*.9,y=row*.85;
+      arenaPoly(g,[[x,y,.005],[x+.88,y,.005],[x+.88,y+.82,.005],[x,y+.82,.005]],(row+col)%2?"#a09a83":"#b7ae92");
+    }
+  }
+  for(const x of [-2.05,2.05]){
+    const points=Array.from({length:24},(_,i)=>[x+Math.cos(i*Math.PI/12)*.98,Math.sin(i*Math.PI/12)*.75,.01]);
+    arenaPoly(g,points,x<0?"#759797":"#bc9a7e");
+  }
+  const phase=duelMotion?Math.min(1,duelMotion.age/.58):0;
+  if(duel) drawArenaSprite(g,duel.friend,-2.02,0,1.15,duelMotion?.home,phase);
+  drawArenaSprite(g,encounter,duel?2.02:0,0,duel?-1.15:.38,duelMotion?.away,phase);
+}
+function advanceSpriteDuel(dt){
+  if(!duelMotion) return;
+  duelMotion.age+=dt;
+  if(duelMotion.age>=.58){
+    duelMotion=null;
+    for(const move of duelMoves) spriteUI[move].disabled=false;
+  }
+  drawSpriteDuel();
 }
 function befriend(){
   if(!encounter) return;
@@ -2049,7 +2196,7 @@ function startSpriteDuel(){
   spriteUI.challenge.hidden=true;
   spriteUI.collect.hidden=true;
   spriteUI.score.hidden=false;
-  for(const move of duelMoves) spriteUI[move].hidden=false;
+  for(const move of duelMoves){spriteUI[move].hidden=false;spriteUI[move].disabled=false;}
   displayDuel("First to 6 points. Guard beats Dash, Dash beats Focus, and Focus beats Guard.");
 }
 function displayDuel(message){
@@ -2059,8 +2206,10 @@ function displayDuel(message){
 }
 function opponentMove(){return duelMoves[(encounter.form+duel.round)%duelMoves.length];}
 function playSpriteMove(move){
-  if(!duel||duel.done) return;
+  if(!duel||duel.done||duelMotion) return;
   const reply=opponentMove();
+  duelMotion={home:move,away:reply,age:0};
+  for(const key of duelMoves) spriteUI[key].disabled=true;
   let result="Same move. One point each.";
   if(beats[move]===reply){
     duel.home+=duel.friend.power===4&&move==="dash"?3:2;
@@ -2243,7 +2392,8 @@ function frame(now){
   const dt=Math.min(.05,(now-previous)/1000);
   previous=now;
   if(houseDialog.open) advanceTv(dt);
-  else if(!spriteDialog.open&&!wardrobe.open){
+  else if(spriteDialog.open) advanceSpriteDuel(dt);
+  else if(!wardrobe.open){
     update(dt);
     draw();
   }
