@@ -77,6 +77,12 @@ header{z-index:1;left:0;right:0;display:grid;place-items:center;pointer-events:n
   <p id="room-status" role="status">Offline</p>
   <button id="room-host">Host a room</button>
   <div><label>Room code <input id="room-code" maxlength="8" autocomplete="off" autocapitalize="characters"></label> <button id="room-join">Join</button></div>
+  <details><summary>Same Wi-Fi pairing</summary>
+    <p>Host: create an invite. Guest: paste it and make a reply. Host: paste the reply to finish.</p>
+    <textarea id="room-pair-text" aria-label="Pairing invite or reply" rows="3" style="width:100%;box-sizing:border-box"></textarea>
+    <div><button id="room-lan-host">Create invite</button> <button id="room-lan-join">Make reply</button>
+    <button id="room-lan-finish">Accept reply</button> <button id="room-lan-copy">Copy text</button></div>
+  </details>
   <button id="room-leave">Leave room</button> <button id="room-close">Back to map</button>
 </dialog>
 <dialog id="wardrobe" aria-labelledby="wardrobe-title" style="width:min(360px,92vw);background:#173a36;color:#fff5df;border:1px solid #97b8a4;border-radius:18px;padding:18px">
@@ -2428,7 +2434,7 @@ wardrobe.addEventListener("close",()=>pressed.clear());
 const roomDialog=document.getElementById("room-dialog");
 const roomStatus=document.getElementById("room-status");
 const roomCode=document.getElementById("room-code");
-let roomPeer=null,roomConnection=null,remoteTraveller=null,roomTask=0,roomSend=0,peerLibrary=null;
+let roomPeer=null,roomConnection=null,remoteTraveller=null,roomTask=0,roomSend=0,peerLibrary=null,lanPeer=null;
 const onlineModes=new Set(["On foot","Car","Bike","Motorbike","Plane","Boat","Bus"]);
 function loadPeerLibrary(){
   if(window.Peer) return Promise.resolve();
@@ -2445,10 +2451,11 @@ function loadPeerLibrary(){
 }
 function leaveRoom(message="Offline"){
   roomTask++;
-  const connection=roomConnection,peer=roomPeer;
-  roomConnection=null;roomPeer=null;remoteTraveller=null;
+  const connection=roomConnection,peer=roomPeer,lan=lanPeer;
+  roomConnection=null;roomPeer=null;remoteTraveller=null;lanPeer=null;
   connection?.close();
   peer?.destroy();
+  lan?.close();
   say(roomStatus,message);
 }
 function acceptTraveller(value){
@@ -2474,7 +2481,7 @@ function attachRoomConnection(connection){
   };
   connection.on("close",disconnected);
   connection.on("error",disconnected);
-  setTimeout(()=>{
+  if(!connection.manual) setTimeout(()=>{
     if(roomConnection===connection&&!connection.open){
       roomConnection=null;connection.close();say(roomStatus,"Connection timed out. Try both iPads on the same Wi-Fi.");
     }
@@ -2512,6 +2519,94 @@ async function startRoom(host){
     if(task===roomTask) leaveRoom("Room service is unavailable. Solo play is still available.");
   }
 }
+const pairingText=document.getElementById("room-pair-text");
+function lanChannel(dc){
+  const events={};
+  for(const name of ["open","close","error"]) dc.addEventListener(name,e=>events[name]?.(e));
+  dc.addEventListener("message",e=>{
+    try{events.data?.(JSON.parse(e.data));}catch{}
+  });
+  return {
+    manual:true,get open(){return dc.readyState==="open";},
+    on(name,handler){events[name]=handler;},
+    close(){dc.close();},
+    send(data){if(dc.readyState==="open") dc.send(JSON.stringify(data));}
+  };
+}
+function createLanPeer(){
+  const peer=new RTCPeerConnection({iceServers:[]});
+  lanPeer=peer;
+  peer.addEventListener("connectionstatechange",()=>{
+    if(peer===lanPeer&&["failed","closed","disconnected"].includes(peer.connectionState)){
+      leaveRoom("Local pairing disconnected. Keep both iPads on the same Wi-Fi.");
+    }
+  });
+  return peer;
+}
+function waitForLanICE(peer){
+  if(peer.iceGatheringState==="complete") return Promise.resolve();
+  return new Promise(resolve=>{
+    const done=()=>{
+      if(peer.iceGatheringState!=="complete") return;
+      peer.removeEventListener("icegatheringstatechange",done);resolve();
+    };
+    peer.addEventListener("icegatheringstatechange",done);
+    setTimeout(()=>{peer.removeEventListener("icegatheringstatechange",done);resolve();},5500);
+  });
+}
+function decodePairing(type){
+  if(pairingText.value.length>32000) throw Error("Pairing text is too long");
+  const parsed=JSON.parse(pairingText.value);
+  if(parsed.type!==type||typeof parsed.sdp!=="string"||!parsed.sdp.startsWith("v=0")) throw Error("Wrong pairing text");
+  return {type:parsed.type,sdp:parsed.sdp};
+}
+async function makeLanInvite(){
+  leaveRoom("Creating Wi-Fi invite…");
+  try{
+    const peer=createLanPeer();
+    attachRoomConnection(lanChannel(peer.createDataChannel("australind")));
+    await peer.setLocalDescription(await peer.createOffer());
+    await waitForLanICE(peer);
+    if(peer!==lanPeer) return;
+    pairingText.value=JSON.stringify(peer.localDescription);
+    say(roomStatus,"Copy the invite to the other iPad.");
+  }catch{leaveRoom("Could not create a Wi-Fi invite.");}
+}
+async function makeLanReply(){
+  let invite;
+  try{invite=decodePairing("offer");}catch{say(roomStatus,"Paste the host’s invite first.");return;}
+  leaveRoom("Creating Wi-Fi reply…");
+  try{
+    const peer=createLanPeer();
+    peer.addEventListener("datachannel",event=>attachRoomConnection(lanChannel(event.channel)));
+    await peer.setRemoteDescription(invite);
+    await peer.setLocalDescription(await peer.createAnswer());
+    await waitForLanICE(peer);
+    if(peer!==lanPeer) return;
+    pairingText.value=JSON.stringify(peer.localDescription);
+    say(roomStatus,"Copy the reply back to the host iPad.");
+  }catch{leaveRoom("Could not use that invite. Create a fresh one.");}
+}
+async function acceptLanReply(){
+  const peer=lanPeer;
+  if(!peer||peer.localDescription?.type!=="offer"){say(roomStatus,"This iPad needs to create an invite first.");return;}
+  try{
+    await peer.setRemoteDescription(decodePairing("answer"));
+    if(peer===lanPeer&&!roomConnection?.open){
+      say(roomStatus,"Connecting on Wi-Fi…");
+      setTimeout(()=>{
+        if(peer===lanPeer&&!roomConnection?.open) leaveRoom("Wi-Fi pairing timed out. Check both iPads are on the same network.");
+      },20000);
+    }
+  }catch{say(roomStatus,"Paste the reply from the other iPad.");}
+}
+document.getElementById("room-lan-host").onclick=makeLanInvite;
+document.getElementById("room-lan-join").onclick=makeLanReply;
+document.getElementById("room-lan-finish").onclick=acceptLanReply;
+document.getElementById("room-lan-copy").onclick=async()=>{
+  try{await navigator.clipboard.writeText(pairingText.value);say(roomStatus,"Pairing text copied.");}
+  catch{pairingText.select();say(roomStatus,"Select and copy the pairing text.");}
+};
 function updateRoom(dt){
   if(remoteTraveller){
     const easing=1-Math.exp(-dt*15);
