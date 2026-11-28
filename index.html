@@ -53,16 +53,34 @@ header{z-index:1;left:0;right:0;display:grid;place-items:center;pointer-events:n
 .room h2,.room p{margin:0 0 6px}
 .tv{background:#263630;border:8px solid #192623;border-radius:15px;margin:8px auto;max-width:480px;padding-bottom:6px}
 #tv-game{width:100%;height:auto;max-height:38dvh;object-fit:contain}
+#sprite-dialog{width:min(560px,94vw);max-height:88dvh;overflow:auto;background:#173a36;color:#fff5df;border:1px solid #97b8a4;border-radius:19px;padding:18px}
+#sprite-dialog::backdrop{background:#0b2529a8}#sprite-dialog h2{margin:0 0 10px}#sprite-dialog p{margin:7px 0}
+#sprite-dialog button{margin:4px 5px 2px 0}#sprite-dialog button:disabled{opacity:.45}#sprite-dialog select{font:inherit;max-width:100%;padding:7px}
+#sprite-dialog [hidden]{display:none!important}#sprite-portraits{display:block;width:100%;height:auto;background:#254d43;border-radius:12px;margin:9px 0}
+#sprite-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 10px;padding-left:21px;font-size:14px}
+#sprite-book{margin-top:6px;min-height:38px}
 </style>
 </head>
 <body>
 <canvas id="world" aria-label="Perspective 3D Australind foreshore game"></canvas>
 <header><span id="street">Ridley Place Foreshore</span></header>
-<button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p></section>
+<button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p><button id="sprite-book">Sprite journal <span id="sprite-count">0/10</span></button></section>
 <div class="panel" id="hint" aria-live="polite"><span id="prompt">Explore the foreshore.</span><small id="keys"><br>W / ↑ forward · S / ↓ reverse · A D / ← → turn · E to interact</small></div>
 <div id="touch"><div id="pad"><button data-key="up" aria-label="Move forward">▲</button><button data-key="left" aria-label="Turn left">◀</button><button data-key="down" aria-label="Move backward">▼</button><button data-key="right" aria-label="Turn right">▶</button></div></div><div id="actions"><button id="action">Interact</button><button id="reset">Return to park</button></div>
 <aside id="gps" aria-label="GPS overview"><canvas id="gps-map" width="240" height="180" aria-label="Zoomed-out map centred on your location"></canvas><details id="map-info" open><summary aria-label="Map data information">ⓘ</summary><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap · ODbL</a></details></aside>
 <dialog id="house"><div class="room"><div class="room-wall"><h2>Living room</h2><p>Play Estuary Glide on the TV.</p></div><div class="tv"><canvas id="tv-game" width="480" height="270" aria-label="Estuary Glide game"></canvas><button id="tv-flap">Play</button></div><button id="house-exit">Go outside</button></div></dialog>
+<dialog id="sprite-dialog" aria-labelledby="sprite-title">
+<h2 id="sprite-title">Estuary Sprites</h2>
+<p id="sprite-note" role="status"></p>
+<ul id="sprite-list"></ul>
+<canvas id="sprite-portraits" width="480" height="145" aria-label="Sprites in this encounter" hidden></canvas>
+<p id="sprite-score" hidden></p>
+<label id="sprite-team" hidden>Your Sprite <select id="sprite-pick"></select></label>
+<div id="sprite-controls">
+<button id="sprite-collect" hidden>Befriend</button><button id="sprite-challenge" hidden>Start duel</button>
+<button id="sprite-dash" hidden>Dash</button><button id="sprite-guard" hidden>Guard</button><button id="sprite-focus" hidden>Focus</button>
+<button id="sprite-close">Back outside</button>
+</div></dialog>
 <p class="panel" id="startup" role="status">If the game does not appear here, download the HTML file and open it in a browser.</p>
 <script>
 "use strict";
@@ -77,7 +95,8 @@ const car = {x:347,y:268,style:"hatch",paint:"#bfc4bd",name:"Silver hatchback"};
 const carSpawns=[
   [car,347,268],
   [{style:"ute",paint:"#b26b54",name:"Copper ute"},355,272],
-  [{style:"wagon",paint:"#597b94",name:"Blue wagon"},349,279]
+  [{style:"wagon",paint:"#597b94",name:"Blue wagon"},349,279],
+  [{vehicleMode:"Bus",name:"Australind bus"},358,282]
 ];
 for(const [item,x,y] of carSpawns) Object.assign(item,{x,y,heading:0});
 let drivenCar=null;
@@ -345,7 +364,7 @@ function carBody(model,paint){
 }
 function vehicle(p,mode){
   p={...p,modelScale:.08};
-  shadow(p,mode==="Car"?11:3,mode==="Car"?20:11);
+  shadow(p,mode==="Bus"?13:mode==="Car"?11:3,mode==="Bus"?43:mode==="Car"?20:11);
   const style=p.style||"hatch", paint=p.paint||"#bfc4bd";
   if(mode==="Car") p.lengthScale=style==="wagon"?1.18:style==="ute"?1.12:1;
   const key=mode==="Car"?mode+style+paint:mode;
@@ -907,12 +926,43 @@ const traffic=[
   createTraveller(parisTraffic,.57,17,{mode:"Car",style:"hatch",paint:"#6f78a4",lane:1.5}),
   createTraveller(localTraffic,1.58,10,{mode:"Car",style:"ute",paint:"#a46560",lane:1.15})
 ];
+// Seed neighbourhood traffic from the mapped centre lines.
+const neighbourhoodTraffic=[];
+for(const road of townRoads){
+  if(!road.name||road.foot||neighbourhoodTraffic.some(item=>item.name===road.name)) continue;
+  const anchor=road.path[Math.floor(road.path.length/2)];
+  if(anchor[0]<540||anchor[0]>2270||anchor[1]<-650||anchor[1]>1040) continue;
+  if(neighbourhoodTraffic.some(item=>Math.hypot(item.anchor[0]-anchor[0],item.anchor[1]-anchor[1])<105)) continue;
+  const route=makeRoute(road.path);
+  if(route.total<85) continue;
+  neighbourhoodTraffic.push({name:road.name,anchor,route});
+  if(neighbourhoodTraffic.length===14) break;
+}
+for(const [i,{route}] of neighbourhoodTraffic.entries()){
+  traffic.push(createTraveller(route,.22+(i%5)*.14,10+(i%4)*2,{
+    mode:"Car",style:["hatch","ute","wagon"][i%3],paint:["#8597a4","#baaf96","#96665a","#566f71"][i%4],lane:1.18
+  }));
+}
 const localFootways=townRoads.filter(road=>road.foot&&road.path.some(([x,y])=>x>267&&x<365&&y>180&&y<330));
 const walkRoutes=localFootways.map(road=>makeRoute(road.path)).filter(route=>route.total>10).slice(0,7);
 walkRoutes.unshift(makeRoute([[333,233],[336,247],[340,256],[345,262],[346,274]]));
 const walkers=walkRoutes.flatMap((route,index)=>[.18,.72,1.35].map((phase,i)=>
   createTraveller(route,phase,1.4+(index%3)*.17,{color:["#335d82","#b66b55","#6d7e4d","#826d96"][(index+i)%4],walkPhase:i})
 ));
+const walkAnchors=[];
+for(const road of townRoads){
+  if(!road.foot) continue;
+  const route=makeRoute(road.path);
+  const anchor=road.path[0];
+  if(route.total<15||anchor[0]<395||anchor[0]>2310||anchor[1]<-710||anchor[1]>1060) continue;
+  if(walkAnchors.some(p=>Math.hypot(p[0]-anchor[0],p[1]-anchor[1])<85)) continue;
+  const i=walkAnchors.length;
+  walkAnchors.push(anchor);
+  walkers.push(createTraveller(route,.25+(i%5)*.16,1.1+(i%4)*.16,{
+    color:["#55718e","#ab7158","#7a8468","#725777"][i%4],walkPhase:i
+  }));
+  if(walkAnchors.length===22) break;
+}
 const boats=[
   createTraveller(makeRoute([[229,182],[218,260],[209,350],[210,430]]),.25,6,{paint:"#e4cfaa"}),
   createTraveller(makeRoute([[193,237],[181,321],[185,438],[175,550]]),1.4,8,{paint:"#a4bfbd"}),
@@ -951,7 +1001,7 @@ function moveTraffic(dt){
   for(const walker of walkers){
     const step=dt*walker.speed, pose=routePose(walker,step);
     const vehicles=player.mode==="Car"||player.mode==="Bike"?[...traffic,player]:traffic;
-    if(vehicles.some(p=>personBlocks(walker,pose,p,p.mode==="Bus"?4.6:2.5))) continue;
+    if(vehicles.some(p=>personBlocks(walker,pose,p,p.mode==="Bus"||(p===player&&drivenCar?.vehicleMode==="Bus")?4.6:2.5))) continue;
     walker.phase+=step;
     walker.walkPhase+=dt*9;
     Object.assign(walker,pose);
@@ -1065,11 +1115,12 @@ function draw(){
   for(const [item] of carSpawns){
     if(item===drivenCar) continue;
     objects.push([item,()=>{
-      vehicle(item,"Car");
+      vehicle(item,item.vehicleMode||"Car");
       if(distance(player,item)<12) label(item.x,item.y,2.3,item.name);
     }]);
   }
   addAmbientActors(objects);
+  addEstuarySprites(objects);
   for(const boat of shoreBoats){
     if(boat===drivenBoat) continue;
     objects.push([boat,()=>{
@@ -1101,7 +1152,7 @@ function draw(){
       mesh({...player,modelScale:.10},airframe);
       return;
     }
-    if(player.mode!=="On foot") vehicle(player.mode==="Car"?{...player,style:drivenCar?.style,paint:drivenCar?.paint}:player,player.mode);
+    if(player.mode!=="On foot") vehicle(player.mode==="Car"?{...player,style:drivenCar?.style,paint:drivenCar?.paint}:player,drivenCar?.vehicleMode||player.mode);
     if(player.mode!=="Car") person({...player, y:player.y-27*Math.sin(bounce/.48*Math.PI)},"#f37854");
     const modelScale=.08;
     dot(player.x,player.y,(player.mode==="Car"?29:39)*modelScale,4*modelScale,"#fff5bc");
@@ -1132,6 +1183,8 @@ function action(){
     return dock?["Step onto jetty",()=>leaveBoat(dock)]:["Return to a jetty to dock",null];
   }
   if(player.mode!=="On foot") return ["Hop off",leaveVehicle];
+  const sprite=estuarySprites.filter(p=>distance(player,p)<2.7).sort((a,b)=>distance(player,a)-distance(player,b))[0];
+  if(sprite) return ["Meet "+sprite.name,()=>openSpriteDialog(sprite)];
   if(!active && near(bike)) return ["Ride bike",()=>enterVehicle(bike,"Bike")];
   if(!active){
     const parked=carSpawns.map(([item])=>item).filter(near)
@@ -1170,8 +1223,9 @@ function say(element,value){
 function update(dt){
   const horizontal = Number(pressed.has("right"))-Number(pressed.has("left"));
   const vertical = Number(pressed.has("down"))-Number(pressed.has("up"));
-  const speed=player.mode==="Plane"?42:player.mode==="Car"?(vertical>0?14:44):player.mode==="Bike"?9:player.mode==="Boat"?21:4.4;
-  const turnRate=player.mode==="Car"?2.2:player.mode==="Plane"?2.05:3;
+  const drivingBus=drivenCar?.vehicleMode==="Bus";
+  const speed=player.mode==="Plane"?42:player.mode==="Car"?(drivingBus?(vertical>0?8:24):(vertical>0?14:44)):player.mode==="Bike"?9:player.mode==="Boat"?21:4.4;
+  const turnRate=player.mode==="Car"?(drivingBus?1.32:2.2):player.mode==="Plane"?2.05:3;
   player.heading=(player.heading||0)+horizontal*dt*turnRate;
   const forward=-vertical;
   moving=forward!==0;
@@ -1187,7 +1241,7 @@ function update(dt){
   const target={x:blocked(x,player.y)?player.x:x,y};
   if(blocked(target.x,y)) target.y=player.y;
   const driving=player.mode==="Car"||player.mode==="Bike";
-  const stopped=driving&&forward&&activePedestrians().some(p=>personBlocks(player,target,p,2.7));
+  const stopped=driving&&forward&&activePedestrians().some(p=>personBlocks(player,target,p,drivingBus?4.6:2.7));
   if(!stopped) Object.assign(player,target);
   moveTraffic(dt);
   advanceActivity(dt);
@@ -1204,7 +1258,7 @@ function update(dt){
   }
   updateStreet(dt);
   updateGps(dt);
-  say(ui.mode,player.mode);
+  say(ui.mode,drivingBus?"Bus":player.mode);
   say(ui.delivery,["🧺 Drive to the picnic pickup on Paris Road.","🧺 Drive to the foreshore picnic drop-off.","⭐ Picnic delivered!"][delivery]);
   say(ui.race,race>=route.length ? (raceTime<=finishTime?"🏁 You won the bike race!":"🏁 You finished the bike race!") : race>=0 ? "🚲 Checkpoint "+(race+1)+" of "+route.length : "🚲 Ride a bike over to Riley to race.");
   say(ui.hunt,hunt===2?"⭐ You found the treasure!":hunt===1?"🧭 Look near the land end of the jetty.":"🧭 Find Scout to start the treasure hunt.");
@@ -1317,6 +1371,169 @@ function houseNearPlayer(){
   return null;
 }
 
+const estuarySprites=[
+  {name:"Quillip",kind:"echidna",place:"Near the foreshore bike",x:332,y:246,paint:"#d19763",trim:"#6e503b",form:0,power:3},
+  {name:"Muddlefin",kind:"mudskipper",place:"By the jetties",x:268,y:302,paint:"#78ada1",trim:"#3b7876",form:1,power:3},
+  {name:"Karraclaw",kind:"crab",place:"Karragarup Play Space",x:317,y:212,paint:"#77aace",trim:"#3f688a",form:2,power:4},
+  {name:"Gumnimble",kind:"possum",place:"Just north of the play space",x:324,y:192,paint:"#b0ada3",trim:"#655d65",form:3,power:3},
+  {name:"Reedwhistle",kind:"wren",place:"Along the foreshore to the north",x:303,y:160,paint:"#7297ba",trim:"#e4d8b0",form:4,power:2},
+  {name:"Dunebounce",kind:"wallaby",place:"On the north foreshore",x:354,y:112,paint:"#dcb486",trim:"#87634d",form:5,power:4},
+  {name:"Specklecrest",kind:"lizard",place:"Near the Paris Road picnic pickup",x:479,y:338,paint:"#aac17c",trim:"#617d4d",form:6,power:3},
+  {name:"Pepperbill",kind:"pelican",place:"South of the jetties",x:293,y:370,paint:"#e7e2ce",trim:"#dcaa68",form:7,power:2},
+  {name:"Mosskip",kind:"frog",place:"South along the foreshore",x:286,y:418,paint:"#98c980",trim:"#547d55",form:8,power:3},
+  {name:"Wattleflutter",kind:"moth",place:"Around the basketball activity",x:483,y:367,paint:"#f0be6c",trim:"#986ca1",form:9,power:2}
+];
+function paintSprite(g,s,x,y,r,flip=false){
+  g.save();
+  g.translate(x,y);
+  g.scale(r*(flip?-1:1),r);
+  const oval=(x,y,a,b,color,angle=0)=>{
+    g.beginPath();g.ellipse(x,y,a,b,angle,0,Math.PI*2);
+    g.fillStyle=color;g.fill();
+  };
+  switch(s.form){
+    case 0: for(let i=0;i<6;i++) oval(-.58+i*.19,-.36-Math.sin(i*.55)*.18,.13,.39,s.trim,-.35+i*.12); break;
+    case 1: oval(-.78,.04,.48,.19,s.trim,-.35);oval(-.26,-.41,.37,.16,s.trim,.42);break;
+    case 2: oval(-.77,-.31,.3,.22,s.trim,.4);oval(.79,-.34,.3,.22,s.trim,-.4);break;
+    case 3: oval(-.85,-.12,.59,.17,s.trim,.45);oval(.31,-.67,.17,.2,s.trim); oval(.63,-.58,.15,.19,s.trim);break;
+    case 4: oval(-.75,-.17,.46,.11,s.trim,.52);oval(.09,-.48,.16,.33,s.trim,-.36);break;
+    case 5: oval(-.83,.37,.61,.12,s.trim,-.28);oval(.32,-.83,.11,.36,s.trim,-.17);oval(.56,-.78,.1,.34,s.trim,.1);break;
+    case 6: oval(-.81,.22,.58,.12,s.trim,-.14);for(let i=0;i<4;i++) oval(-.54+i*.23,-.39,.13,.22,s.trim);break;
+    case 7: oval(.29,-.4,.22,.63,s.paint,.18);oval(.84,-.33,.48,.15,s.trim,.1);break;
+    case 8: oval(-.43,-.39,.23,.27,s.paint);oval(.46,-.39,.25,.28,s.paint);break;
+    case 9: oval(-.48,-.16,.59,.42,s.trim,-.54);oval(.44,-.22,.62,.42,s.trim,.54);break;
+  }
+  oval(-.42,.34,.34,.17,s.trim);oval(.40,.34,.33,.17,s.trim);
+  oval(0,.02,.72,.43,s.paint);
+  if(s.form===9){oval(-.43,-.16,.25,.19,s.paint);oval(.47,-.17,.25,.19,s.paint);}
+  const eyeY=s.form===7?-.55:s.form===8?-.36:-.16;
+  const eyeX=s.form===8?.38:.51;
+  oval(eyeX,eyeY,.097,.11,"#182e2b");oval(eyeX+.024,eyeY-.03,.031,.033,"#fff8dc");
+  g.restore();
+}
+function addEstuarySprites(objects){
+  for(const s of estuarySprites){
+    if(distance(s,camera)>48) continue;
+    objects.push([s,()=>{
+      const p=project(s.x,s.y,.54+Math.sin(waterTime*3+s.form)*.085);
+      if(!p||p[0]<-25||p[0]>width+25||p[1]<0||p[1]>height+25) return;
+      dot(s.x,s.y,.02,.37,"#1d322e54");
+      paintSprite(ctx,s,p[0],p[1],Math.min(76,p[2]*.62));
+      if(distance(player,s)<8) label(s.x,s.y,1.5,s.name);
+    }]);
+  }
+}
+const spriteUI=Object.fromEntries(["dialog","title","note","list","portraits","score","team","pick","collect","challenge",
+  "dash","guard","focus","close","book","count"].map(id=>[id,document.getElementById("sprite-"+id)]));
+const spriteDialog=spriteUI.dialog;
+const friends=new Set();
+try{
+  const saved=JSON.parse(localStorage.getItem("australind-estuary-sprites")||"[]");
+  if(Array.isArray(saved)) for(const name of saved) if(estuarySprites.some(s=>s.name===name)) friends.add(name);
+}catch{}
+let encounter=null, duel=null;
+function refreshSpriteJournal(){
+  spriteUI.count.textContent=friends.size+"/10";
+  const items=estuarySprites.map(s=>{
+    const item=document.createElement("li");
+    item.textContent=(friends.has(s.name)?"✓ ":"")+s.name+" · "+s.place;
+    return item;
+  });
+  spriteUI.list.replaceChildren(...items);
+}
+function openSpriteDialog(sprite=null){
+  pressed.clear();
+  encounter=sprite;duel=null;
+  refreshSpriteJournal();
+  spriteUI.title.textContent=sprite?sprite.name+" · "+sprite.kind:"Estuary Sprites";
+  spriteUI.list.hidden=!!sprite;
+  spriteUI.portraits.hidden=!sprite;
+  spriteUI.score.hidden=true;
+  spriteUI.team.hidden=true;
+  spriteUI.collect.hidden=!sprite||friends.has(sprite.name);
+  spriteUI.challenge.hidden=true;
+  for(const move of ["dash","guard","focus"]) spriteUI[move].hidden=true;
+  spriteUI.note.textContent=sprite?"Befriend this Sprite or choose a companion for a friendly duel.":"Find all ten Sprites around Australind. Their locations are listed below.";
+  if(sprite){
+    updateSpriteTeam();
+    drawSpriteDuel();
+  }
+  spriteDialog.showModal();
+}
+function updateSpriteTeam(){
+  const available=estuarySprites.filter(s=>friends.has(s.name)&&s!==encounter);
+  spriteUI.pick.replaceChildren(...available.map(s=>{
+    const option=document.createElement("option");
+    option.value=s.name;option.textContent=s.name;return option;
+  }));
+  spriteUI.team.hidden=!available.length;
+  spriteUI.challenge.hidden=!available.length;
+}
+function drawSpriteDuel(){
+  const g=spriteUI.portraits.getContext("2d");
+  g.fillStyle="#294d45";g.fillRect(0,0,480,145);
+  g.fillStyle="#597564";g.fillRect(0,101,480,44);
+  if(duel) paintSprite(g,duel.friend,128,86,39);
+  paintSprite(g,encounter,duel?350:240,86,39,!!duel);
+}
+function befriend(){
+  if(!encounter) return;
+  friends.add(encounter.name);
+  try{ localStorage.setItem("australind-estuary-sprites",JSON.stringify([...friends])); }catch{}
+  refreshSpriteJournal();
+  spriteUI.collect.hidden=true;
+  updateSpriteTeam();
+  spriteUI.note.textContent=encounter.name+" joined your collection!";
+}
+const duelMoves=["dash","focus","dash","guard"];
+const moveNames={dash:"Dash",guard:"Guard",focus:"Focus"};
+const beats={dash:"focus",focus:"guard",guard:"dash"};
+function startSpriteDuel(){
+  const friend=estuarySprites.find(s=>s.name===spriteUI.pick.value&&friends.has(s.name)&&s!==encounter);
+  if(!friend||!encounter) return;
+  duel={friend,home:0,away:0,round:0,done:false};
+  spriteUI.team.hidden=true;
+  spriteUI.challenge.hidden=true;
+  spriteUI.collect.hidden=true;
+  spriteUI.score.hidden=false;
+  for(const move of duelMoves) spriteUI[move].hidden=false;
+  displayDuel("First to 6 points. Guard beats Dash, Dash beats Focus, and Focus beats Guard.");
+}
+function displayDuel(message){
+  spriteUI.score.textContent=duel.friend.name+" "+duel.home+" · "+duel.away+" "+encounter.name;
+  spriteUI.note.textContent=message+(duel.done?"":" "+encounter.name+" is preparing "+moveNames[opponentMove()]+".");
+  drawSpriteDuel();
+}
+function opponentMove(){return duelMoves[(encounter.form+duel.round)%duelMoves.length];}
+function playSpriteMove(move){
+  if(!duel||duel.done) return;
+  const reply=opponentMove();
+  let result="Same move. One point each.";
+  if(beats[move]===reply){
+    duel.home+=duel.friend.power===4&&move==="dash"?3:2;
+    result=moveNames[move]+" wins the round!";
+  }else if(beats[reply]===move){
+    duel.away+=encounter.power===4&&reply==="dash"?3:2;
+    result=encounter.name+" wins the round.";
+  }else{
+    duel.home++;duel.away++;
+  }
+  duel.round++;
+  if(duel.home>=6||duel.away>=6){
+    duel.done=true;
+    for(const action of duelMoves) spriteUI[action].hidden=true;
+    spriteUI.collect.hidden=friends.has(encounter.name);
+    result=duel.home===duel.away?"A tie! Both Sprites did well.":duel.home>duel.away?"You won the friendly duel!":encounter.name+" won the friendly duel.";
+  }
+  displayDuel(result);
+}
+spriteUI.book.onclick=()=>openSpriteDialog();
+spriteUI.close.onclick=()=>spriteDialog.close();
+spriteUI.collect.onclick=befriend;
+spriteUI.challenge.onclick=startSpriteDuel;
+for(const move of duelMoves) spriteUI[move].onclick=()=>playSpriteMove(move);
+spriteDialog.addEventListener("close",()=>pressed.clear());
+refreshSpriteJournal();
 const houseDialog=document.getElementById("house");
 const tv=document.getElementById("tv-game").getContext("2d");
 const tvFlap=document.getElementById("tv-flap");
@@ -1394,7 +1611,7 @@ function drawTv(){
 }
 
 addEventListener("keydown",event=>{
-  if(houseDialog.open) return;
+  if(houseDialog.open||spriteDialog.open) return;
   if(keys[event.key.toLowerCase()]){
     event.preventDefault();
     pressed.add(keys[event.key.toLowerCase()]);
@@ -1437,7 +1654,7 @@ function frame(now){
   const dt=Math.min(.05,(now-previous)/1000);
   previous=now;
   if(houseDialog.open) advanceTv(dt);
-  else{
+  else if(!spriteDialog.open){
     update(dt);
     draw();
   }
