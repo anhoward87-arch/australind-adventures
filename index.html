@@ -140,14 +140,17 @@ function resize(){
 const tilt=.32;
 const sinTilt=Math.sin(tilt), cosTilt=Math.cos(tilt);
 const nearPlane=2.52;
+function chaseDistance(){
+  return player.mode==="Car"?74:player.mode==="On foot"?83:player.mode==="Plane"?155:112;
+}
+function chaseHeight(){
+  return player.mode==="Car"?43:player.mode==="On foot"?42:player.mode==="Plane"?99:49;
+}
 function cameraPoint(x,y,z=0){
   const east=x-camera.x, south=y-camera.y;
   const dx=east*camera.cos+south*camera.sin;
-  const inCar=player.mode==="Car";
-  const distance=player.mode==="Plane"?155:inCar?130:112;
-  const elevation=player.mode==="Plane"?99:inCar?56:49;
-  const dy=-east*camera.sin+south*camera.cos-distance*camera.scale;
-  const dz=z-elevation*camera.scale;
+  const dy=-east*camera.sin+south*camera.cos-chaseDistance()*camera.scale;
+  const dz=z-chaseHeight()*camera.scale;
   return [dx,-dy*sinTilt+dz*cosTilt,-dy*cosTilt-dz*sinTilt];
 }
 function screenPoint([x,y,depth]){
@@ -183,7 +186,7 @@ function poly(points,color){
 }
 function rect(x,y,w,h,color,z=0){poly([[x,y,z],[x+w,y,z],[x+w,y+h,z],[x,y+h,z]],color);}
 function box(x,y,w,d,h,top,side){
-  const viewX=camera.x-camera.sin*155*camera.scale, viewY=camera.y+camera.cos*155*camera.scale;
+  const viewX=camera.x-camera.sin*chaseDistance()*camera.scale, viewY=camera.y+camera.cos*chaseDistance()*camera.scale;
   if(viewY>=y+d) poly([[x,y+d],[x+w,y+d],[x+w,y+d,h],[x,y+d,h]],side);
   if(viewY<=y) poly([[x,y],[x+w,y],[x+w,y,h],[x,y,h]],side);
   if(viewX>x+w) poly([[x+w,y],[x+w,y+d],[x+w,y+d,h],[x+w,y,h]],side);
@@ -228,7 +231,177 @@ function headingPoint(p,x,y,z=0){
   y*=p.lengthScale??1;
   return [p.x+(x*c-y*a)*scale,p.y+(x*a+y*c)*scale,z*scale];
 }
+// Render nearby hero meshes into a transparent, depth-tested WebGL tile.
+let modelRenderer;
+const modelGeometry=new WeakMap();
+function initModelRenderer(){
+  try{
+    const layer=document.createElement("canvas");
+    const gl=layer.getContext("webgl",{alpha:true,antialias:true,premultipliedAlpha:true});
+    if(!gl) return null;
+    const vertexSource=`
+      attribute vec4 aClip;
+      attribute vec3 aNormal;
+      attribute vec3 aTint;
+      attribute vec3 aView;
+      varying vec3 vNormal,vTint,vView;
+      void main(){gl_Position=aClip;vNormal=aNormal;vTint=aTint;vView=aView;}
+    `;
+    const fragmentSource=`
+      precision mediump float;
+      varying vec3 vNormal,vTint,vView;
+      uniform float uPaint;
+      void main(){
+        vec3 view=normalize(vView);
+        vec3 n=normalize(vNormal);
+        if(dot(n,view)<0.0) n=-n;
+        vec3 light=normalize(vec3(-.56,-.35,.75));
+        vec3 bounce=vec3(.88,.96,1.05);
+        float diffuse=max(0.0,dot(n,light));
+        float tone=.48+.22*max(0.0,n.z)+.36*diffuse;
+        vec3 reflection=reflect(-view,n);
+        float sky=smoothstep(-.13,.65,reflection.z);
+        float lum=dot(vTint,vec3(.2126,.7152,.0722));
+        float polish=uPaint*(.11+.11*smoothstep(.17,.52,lum));
+        float rim=pow(1.0-max(0.0,dot(n,view)),3.0);
+        vec3 halfVector=normalize(light+view);
+        float highlight=pow(max(0.0,dot(n,halfVector)),mix(18.0,44.0,uPaint));
+        vec3 lit=vTint*tone*bounce+vec3(1.0,.91,.73)*diffuse*.08;
+        lit+=vec3(.52,.65,.78)*(sky*.62+rim*.38)*polish;
+        lit+=vec3(1.0,.95,.81)*highlight*(.07+.24*uPaint);
+        gl_FragColor=vec4(clamp(lit,0.0,1.0),1.0);
+      }
+    `;
+    function shader(kind,source){
+      const item=gl.createShader(kind);
+      gl.shaderSource(item,source);gl.compileShader(item);
+      if(!gl.getShaderParameter(item,gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(item));
+      return item;
+    }
+    const program=gl.createProgram();
+    gl.attachShader(program,shader(gl.VERTEX_SHADER,vertexSource));
+    gl.attachShader(program,shader(gl.FRAGMENT_SHADER,fragmentSource));
+    gl.linkProgram(program);
+    if(!gl.getProgramParameter(program,gl.LINK_STATUS)) return null;
+    const buffer=gl.createBuffer();
+    const attributes=["aClip","aNormal","aTint","aView"].map(name=>gl.getAttribLocation(program,name));
+    return {layer,gl,program,buffer,attributes,paint:gl.getUniformLocation(program,"uPaint")};
+  }catch{return null;}
+}
+function unitVector(x,y,z){
+  const length=Math.hypot(x,y,z)||1;
+  return [x/length,y/length,z/length];
+}
+function faceNormal(a,b,c){
+  const x=b[0]-a[0],y=b[1]-a[1],z=b[2]-a[2];
+  const u=c[0]-a[0],v=c[1]-a[1],w=c[2]-a[2];
+  return unitVector(y*w-z*v,z*u-x*w,x*v-y*u);
+}
+function modelTint(color){
+  if(color[0]==="#") return [1,3,5].map(i=>parseInt(color.slice(i,i+2),16)/255);
+  return color.slice(4,-1).split(",").map(channel=>Number(channel)/255);
+}
+function litGeometry(faces,cache){
+  if(cache&&modelGeometry.has(faces)) return modelGeometry.get(faces);
+  const joined=new Map();
+  const prepared=[];
+  for(const [color,...points] of faces){
+    if(points.length<3) continue;
+    const normal=faceNormal(points[0],points[1],points[2]);
+    if(!normal.some(Boolean)) continue;
+    const group=color[0]==="#"?color:"shaded";
+    const keys=points.map(p=>group+":"+p.join(","));
+    for(const key of keys){
+      const normals=joined.get(key)||[];
+      normals.push(normal);
+      joined.set(key,normals);
+    }
+    prepared.push({points,keys,normal,tint:modelTint(color)});
+  }
+  const triangles=[];
+  for(const {points,keys,normal,tint} of prepared){
+    const vertices=points.map((point,i)=>{
+      let [x,y,z]=normal;
+      for(const n of joined.get(keys[i])){
+        if(n[0]*normal[0]+n[1]*normal[1]+n[2]*normal[2]<.30) continue;
+        x+=n[0];y+=n[1];z+=n[2];
+      }
+      return {point,normal:unitVector(x,y,z),tint};
+    });
+    for(let i=1;i+1<vertices.length;i++) triangles.push(vertices[0],vertices[i],vertices[i+1]);
+  }
+  if(cache) modelGeometry.set(faces,triangles);
+  return triangles;
+}
+function drawLitModel(p,faces){
+  if(modelRenderer===undefined) modelRenderer=initModelRenderer();
+  if(!modelRenderer||modelRenderer.gl.isContextLost()) return false;
+  const triangles=litGeometry(faces,p.lit==="car");
+  const placed=new Map();
+  let left=Infinity,top=Infinity,right=-Infinity,bottom=-Infinity;
+  for(const v of triangles){
+    if(placed.has(v)) continue;
+    const world=headingPoint(p,...v.point);
+    const view=cameraPoint(...world);
+    if(view[2]<nearPlane) return false;
+    const [x,y]=screenPoint(view);
+    placed.set(v,{x,y,depth:view[2],world});
+    left=Math.min(left,x);right=Math.max(right,x);
+    top=Math.min(top,y);bottom=Math.max(bottom,y);
+  }
+  if(!placed.size) return false;
+  left=Math.max(0,Math.floor(left)-2);top=Math.max(0,Math.floor(top)-2);
+  right=Math.min(width,Math.ceil(right)+2);bottom=Math.min(height,Math.ceil(bottom)+2);
+  const w=right-left,h=bottom-top;
+  if(w<=0||h<=0) return true;
+  const {gl,layer,program,buffer,attributes,paint}=modelRenderer;
+  const density=Math.min(2.5,canvas.width/Math.max(1,width));
+  const renderW=Math.max(1,Math.ceil(w*density)),renderH=Math.max(1,Math.ceil(h*density));
+  // Grow the backing buffer in steps to avoid reallocating it during each stride.
+  if(renderW>layer.width) layer.width=Math.ceil(renderW/96)*96;
+  if(renderH>layer.height) layer.height=Math.ceil(renderH/96)*96;
+  const data=new Float32Array(triangles.length*13);
+  const angle=p.heading||0, sin=Math.sin(angle), cos=Math.cos(angle);
+  const behind=chaseDistance()*camera.scale;
+  const eyeX=camera.x-camera.sin*behind,eyeY=camera.y+camera.cos*behind;
+  const eyeZ=chaseHeight()*camera.scale;
+  let offset=0;
+  for(const vertex of triangles){
+    const q=placed.get(vertex);
+    const [nx,ny,nz]=vertex.normal;
+    const depth=q.depth;
+    data[offset++]=(2*(q.x-left)/w-1)*depth;
+    data[offset++]=(1-2*(q.y-top)/h)*depth;
+    data[offset++]=depth-2*nearPlane;
+    data[offset++]=depth;
+    data[offset++]=nx*cos-ny*sin;
+    data[offset++]=nx*sin+ny*cos;
+    data[offset++]=nz;
+    for(const channel of vertex.tint) data[offset++]=channel;
+    data[offset++]=eyeX-q.world[0];
+    data[offset++]=eyeY-q.world[1];
+    data[offset++]=eyeZ-q.world[2];
+  }
+  gl.viewport(0,layer.height-renderH,renderW,renderH);
+  gl.clearColor(0,0,0,0);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.useProgram(program);
+  gl.uniform1f(paint,p.lit==="car"?1:0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+  gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);
+  const sizes=[4,3,3,3], starts=[0,4,7,10];
+  attributes.forEach((index,i)=>{
+    gl.enableVertexAttribArray(index);
+    gl.vertexAttribPointer(index,sizes[i],gl.FLOAT,false,52,starts[i]*4);
+  });
+  gl.drawArrays(gl.TRIANGLES,0,triangles.length);
+  ctx.drawImage(layer,0,0,renderW,renderH,left,top,w,h);
+  return true;
+}
 function mesh(p,faces){
+  if(p.lit&&sharpGraphics&&drawLitModel(p,faces)) return;
   const surfaces=faces.map(([color,...points])=>{
     const vertices=points.map(point=>headingPoint(p,...point));
     const depth=vertices.reduce((sum,point)=>sum+cameraPoint(...point)[2],0)/vertices.length;
@@ -303,7 +476,7 @@ const characterLooks=[
 ];
 function person(p,color,name){
   const isPlayer=!name&&p.walkPhase===undefined;
-  p={...p,modelScale:.06};
+  p={...p,modelScale:.06,lit:isPlayer&&player.mode==="On foot"?"clothing":null};
   const seed=parseInt(color.slice(1),16);
   const look=characterLooks[isPlayer?0:seed%characterLooks.length];
   const {skin,hair,pants,shoe}=look;
@@ -673,7 +846,27 @@ function drawTree(t){
     const lx=x+lean+Math.cos(angle)*size*edge;
     const ly=y+Math.sin(angle)*size*.58;
     const z=8+(i*17)%5;
-    dot(lx,ly,z,1.3+(i%5)*.36,leaves[i%leaves.length]);
+    const p=project(lx,ly,z);
+    if(!p) continue;
+    const [sx,sy,zoom]=p,r=(1.25+(i%5)*.33)*zoom;
+    if(!sharpGraphics||r<5){
+      dot(lx,ly,z,1.3+(i%5)*.36,leaves[i%leaves.length]);
+      continue;
+    }
+    const color=leaves[i%leaves.length];
+    const foliage=ctx.createLinearGradient(sx-r*.4,sy-r,sx+r*.3,sy+r);
+    foliage.addColorStop(0,shade(color,1.19));
+    foliage.addColorStop(1,shade(color,.72));
+    ctx.beginPath();
+    for(let point=0;point<13;point++){
+      const a=point*2*Math.PI/13;
+      const l=r*(.85+.15*Math.sin(point*5.71+i*2.8));
+      const px=sx+Math.cos(a)*l, py=sy+Math.sin(a)*l;
+      if(point===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.closePath();
+    ctx.fillStyle=foliage;
+    ctx.fill();
   }
 }
 const grassTussocks=Array.from({length:96},(_,i)=>{
@@ -683,7 +876,7 @@ const grassTussocks=Array.from({length:96},(_,i)=>{
 function drawTussocks(){
   for(const {x,y,lean} of grassTussocks){
     for(let i=-1;i<=1;i++){
-      poly([[x+i-1,y],[x+i+1,y],[x+i*2+lean,y,3.5+Math.abs(i)]],
+      poly([[x+i*.24-.18,y],[x+i*.24+.18,y],[x+i*.57+lean*.18,y,.47+Math.abs(i)*.14]],
         i===0?"#7e8b57":"#a5a675");
     }
   }
@@ -1132,6 +1325,21 @@ function drawEstuarySurface(horizon){
 function drawForeshore(){
   poly([...shore,[2700,1450],[2700,-1200]],"#d9ca9c");
   poly([...shore.map(([x,y])=>[x+2,y]),[2700,1450],[2700,-1200]],"#94b66d");
+  if(sharpGraphics && camera.x<490){
+    const cellX=Math.floor(camera.x/2.8),cellY=Math.floor(camera.y/2.8);
+    for(let gy=cellY-12;gy<=cellY+12;gy++){
+      const y=gy*2.8+Math.sin(gy*9.31)*.8;
+      const edge=waterEdge(y);
+      for(let gx=cellX-10;gx<=cellX+10;gx++){
+        const x=gx*2.8+Math.sin(gx*7.27+gy)*1.1;
+        if(x<edge+2||x>401) continue;
+        const p=project(x,y);
+        if(!p||p[0]<0||p[0]>width||p[1]<0||p[1]>height) continue;
+        const patch=.22+Math.abs(Math.sin(gx*17.3+gy*4.61))*.87;
+        rect(x,y,patch,.16,(gx+gy)%3?"#78865331":"#d5d5a837");
+      }
+    }
+  }
   poly(playground,"#d4bd91");
   for(let i=1;i<shore.length;i++){
     const [x,y]=shore[i-1],[tx,ty]=shore[i];
@@ -1251,10 +1459,9 @@ function draw(){
       mesh({...player,modelScale:.10},airframe);
       return;
     }
-    if(player.mode!=="On foot") vehicle(player.mode==="Car"?{...player,style:drivenCar?.style,paint:drivenCar?.paint}:player,drivenCar?.vehicleMode||player.mode);
+    if(player.mode!=="On foot") vehicle(player.mode==="Car"?{...player,style:drivenCar?.style,paint:drivenCar?.paint,lit:drivenCar?.vehicleMode?"":"car"}:player,drivenCar?.vehicleMode||player.mode);
     if(player.mode!=="Car") person({...player, y:player.y-27*Math.sin(bounce/.48*Math.PI)},"#f37854");
-    const modelScale=.08;
-    dot(player.x,player.y,(player.mode==="Car"?29:39)*modelScale,4*modelScale,"#fff5bc");
+    if(player.mode==="Bike") dot(player.x,player.y,2.1,.16,"#fff5bc");
   }]);
   objects.sort((a,b)=>{
     const dx=b[0].x-a[0].x, dy=b[0].y-a[0].y;
