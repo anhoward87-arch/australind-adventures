@@ -59,12 +59,13 @@ header{z-index:1;left:0;right:0;display:grid;place-items:center;pointer-events:n
 #sprite-dialog [hidden]{display:none!important}#sprite-portraits{display:block;width:100%;height:auto;background:#254d43;border-radius:12px;margin:9px 0}
 #sprite-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 10px;padding-left:21px;font-size:14px}
 #sprite-book{margin-top:6px;min-height:38px}
+#visual-quality{margin:6px 0 0;min-height:36px;font-size:13px}
 </style>
 </head>
 <body>
 <canvas id="world" aria-label="Perspective 3D Australind foreshore game"></canvas>
 <header><span id="street">Ridley Place Foreshore</span></header>
-<button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p><button id="sprite-book">Sprite journal <span id="sprite-count">0/10</span></button></section>
+<button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p><button id="sprite-book">Sprite journal <span id="sprite-count">0/10</span></button><button id="visual-quality" aria-pressed="true">Graphics: Sharp</button></section>
 <div class="panel" id="hint" aria-live="polite"><span id="prompt">Explore the foreshore.</span><small id="keys"><br>W / ↑ forward · S / ↓ reverse · A D / ← → turn · E to interact</small></div>
 <div id="touch"><div id="pad"><button data-key="up" aria-label="Move forward">▲</button><button data-key="left" aria-label="Turn left">◀</button><button data-key="down" aria-label="Move backward">▼</button><button data-key="right" aria-label="Turn right">▶</button></div></div><div id="actions"><button id="action">Interact</button><button id="reset">Return to park</button></div>
 <aside id="gps" aria-label="GPS overview"><canvas id="gps-map" width="240" height="180" aria-label="Zoomed-out map centred on your location"></canvas><details id="map-info" open><summary aria-label="Map data information">ⓘ</summary><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap · ODbL</a></details></aside>
@@ -111,11 +112,26 @@ const camera = {...player, yaw:0, sin:0, cos:1, scale:.14};
 const distance = (a,b) => Math.hypot(a.x-b.x,a.y-b.y);
 const near = point => distance(player,point) < 5;
 const keys = {arrowup:"up",w:"up",arrowdown:"down",s:"down",arrowleft:"left",a:"left",arrowright:"right",d:"right"};
+const qualityButton=document.getElementById("visual-quality");
+let sharpGraphics=true;
+try{sharpGraphics=localStorage.getItem("australind-graphics")!=="smooth";}catch{}
+function setVisualQuality(sharp){
+  sharpGraphics=sharp;
+  qualityButton.textContent=sharp?"Graphics: Sharp":"Graphics: Smooth";
+  qualityButton.setAttribute("aria-pressed",String(sharp));
+  resize();
+}
+qualityButton.onclick=()=>{
+  setVisualQuality(!sharpGraphics);
+  try{localStorage.setItem("australind-graphics",sharpGraphics?"sharp":"smooth");}catch{}
+};
 function resize(){
   width = canvas.clientWidth;
   height = canvas.clientHeight;
   focal = Math.min(height*.85,width*1.03);
-  const ratio = Math.min(devicePixelRatio,2);
+  const ceiling=sharpGraphics?3:1.5;
+  const pixelBudget=sharpGraphics?8_000_000:3_000_000;
+  const ratio=Math.min(devicePixelRatio,ceiling,Math.sqrt(pixelBudget/Math.max(1,width*height)));
   canvas.width = Math.round(width*ratio);
   canvas.height = Math.round(height*ratio);
   ctx.setTransform(ratio,0,0,ratio,0,0);
@@ -832,7 +848,7 @@ function drawMappedBuilding(building){
   faces.sort((a,b)=>b.depth-a.depth);
   for(const side of faces){
     poly(side.face,side.color);
-    if(side.depth<0||side.depth>66) continue;
+    if(side.depth<0||side.depth>(sharpGraphics?66:38)) continue;
     const [x,y]=side.a,[tx,ty]=side.b;
     const span=Math.hypot(tx-x,ty-y);
     if(span<3.2||h<2.3) continue;
@@ -859,6 +875,17 @@ function drawMappedBuilding(building){
   poly([b,c,right],"#b0a08b");
   poly([a,b,right,left],roofs[style]);
   poly([c,d,left,right],"#887c69");
+}
+function drawBuildingShadows(){
+  for(const building of nearby(townChunks)){
+    if(distance(building,camera)>59) continue;
+    const [left,top,right,bottom]=building.outline.reduce(([l,t,r,b],[x,y])=>[
+      Math.min(l,x),Math.min(t,y),Math.max(r,x),Math.max(b,y)
+    ],[Infinity,Infinity,-Infinity,-Infinity]);
+    const h=Math.min(8,building.h);
+    poly([[left,top],[right,top],[right+h*1.75,top+h*.75],[right+h*1.75,bottom+h*.75],
+      [left+h*1.75,bottom+h*.75],[left,bottom]],"#223a3042");
+  }
 }
 function addTownObjects(objects){
   for(const building of nearby(townChunks)){
@@ -1038,12 +1065,48 @@ function addAmbientActors(objects){
     }]);
   }
 }
+function drawEstuarySurface(horizon){
+  const surface=ctx.createLinearGradient(0,Math.max(0,horizon),0,Math.max(1,height));
+  surface.addColorStop(0,"#83a5a6");
+  surface.addColorStop(.35,"#639ba0");
+  surface.addColorStop(1,"#376e76");
+  ctx.fillStyle=surface;
+  ctx.fillRect(0,Math.max(0,horizon),width,height);
+  const coarse=sharpGraphics?6:10;
+  const baseY=Math.round(camera.y/coarse);
+  for(let row=baseY-13;row<=baseY+13;row++){
+    const y=row*coarse+Math.sin(row*5.27)*1.8;
+    const edge=waterEdge(y);
+    if(camera.x>edge+82) continue;
+    for(let i=0;i<(sharpGraphics?6:3);i++){
+      const x=Math.min(camera.x+42,edge-3)-i*8-Math.abs(Math.sin(row*13.13+i*2.9))*8;
+      const p=project(x,y);
+      if(!p||p[0]<-35||p[0]>width+35||p[1]<0||p[1]>height+12) continue;
+      const pulse=.55+.45*Math.sin(waterTime*1.7+row*.8+i);
+      const len=1.4+pulse*2.4;
+      rect(Math.min(x,edge-1-len),y,len,.045+pulse*.035,i%3?"#c8ebdf54":"#274c5a43");
+    }
+  }
+}
 function drawForeshore(){
   poly([...shore,[2700,1450],[2700,-1200]],"#d9ca9c");
   poly([...shore.map(([x,y])=>[x+2,y]),[2700,1450],[2700,-1200]],"#94b66d");
   poly(playground,"#d4bd91");
+  for(let i=1;i<shore.length;i++){
+    const [x,y]=shore[i-1],[tx,ty]=shore[i];
+    if(Math.abs(y-camera.y)>95&&Math.abs(ty-camera.y)>95) continue;
+    poly([[x-2,y],[tx-2,ty],[tx,ty],[x,y]],"#72b0a566");
+    poly([[x-.33,y],[tx-.33,ty],[tx+.24,ty],[x+.24,y]],"#e3d9ba88");
+  }
   for(const [a,b] of jetties){
     drawRoadSurface({x:a[0],y:a[1],tx:b[0],ty:b[1]},2.8,2.8,"#9d8062",false);
+    if(distance({x:a[0],y:a[1]},camera)<110){
+      const dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy);
+      for(let step=.32;step<length;step+=sharpGraphics?.42:.84){
+        const x=a[0]+dx*step/length, y=a[1]+dy*step/length;
+        drawRoadSurface({x:x-dy*1.36/length,y:y+dx*1.36/length,tx:x+dy*1.36/length,ty:y-dx*1.36/length},.037,.037,"#5144365a",false);
+      }
+    }
   }
 }
 function addForeshoreObjects(objects){
@@ -1075,19 +1138,13 @@ function draw(){
   sky.addColorStop(1,"#e7e6d7");
   ctx.fillStyle=sky;
   ctx.fillRect(0,0,width,height);
-  ctx.fillStyle="#559395";
-  ctx.fillRect(0,Math.max(0,horizon),width,height);
+  drawEstuarySurface(horizon);
   ctx.fillStyle="#698e80";
   ctx.beginPath();
   ctx.moveTo(0,horizon+10);
   for(let i=0;i<=24;i++) ctx.lineTo(i*width/24,horizon+3-5*Math.sin(i*.69)-2*Math.cos(i*1.87));
   ctx.lineTo(width,horizon+10);
   ctx.fill();
-  for(let i=0;i<180;i++){
-    const x=-740+(i*79)%830+Math.sin(waterTime*1.1+i)*8;
-    const y=-490+(i*71)%1480;
-    rect(x,y,8+i%23,.5+i%3*.36,i%4?"#bde1cb42":"#345e6350");
-  }
   drawForeshore();
   drawMappedGround();
   drawTownGround();
@@ -1131,6 +1188,7 @@ function draw(){
   if(hunt===1) objects.push([chest,()=>box(chest.x-.6,chest.y-.5,1.2,1,.9,"#e5b149","#845839")]);
   addActivityObjects(objects);
   addForeshoreObjects(objects);
+  if(sharpGraphics) drawBuildingShadows();
   addTownObjects(objects);
   addMapDetails(objects);
   objects.push([player,()=>{
@@ -1646,7 +1704,7 @@ document.getElementById("reset").onclick=()=>{
   updateStreet(0);
 };
 addEventListener("resize",resize);
-resize();
+setVisualQuality(sharpGraphics);
 draw();
 document.getElementById("startup").hidden=true;
 let previous = performance.now();
