@@ -65,11 +65,14 @@ header{z-index:1;left:0;right:0;display:grid;place-items:center;pointer-events:n
 <body>
 <canvas id="world" aria-label="Perspective 3D Australind foreshore game"></canvas>
 <header><span id="street">Ridley Place Foreshore</span></header>
-<button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p><button id="sprite-book">Sprite journal <span id="sprite-count">0/10</span></button><button id="visual-quality" aria-pressed="true">Graphics: Sharp</button></section>
+<button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p><button id="sprite-book">Sprite journal <span id="sprite-count">0/10</span></button><button id="wardrobe-open">Wardrobe</button><button id="visual-quality" aria-pressed="true">Graphics: Sharp</button></section>
 <div class="panel" id="hint" aria-live="polite"><span id="prompt">Explore the foreshore.</span><small id="keys"><br>W / ↑ forward · S / ↓ reverse · A D / ← → turn · E to interact</small></div>
 <div id="touch"><div id="pad"><button data-key="up" aria-label="Move forward">▲</button><button data-key="left" aria-label="Turn left">◀</button><button data-key="down" aria-label="Move backward">▼</button><button data-key="right" aria-label="Turn right">▶</button></div></div><div id="actions"><button id="action">Interact</button><button id="reset">Return to park</button></div>
 <aside id="gps" aria-label="GPS overview"><canvas id="gps-map" width="240" height="180" aria-label="Zoomed-out map centred on your location"></canvas><details id="map-info" open><summary aria-label="Map data information">ⓘ</summary><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap · ODbL</a></details></aside>
 <dialog id="house"><div class="room"><div class="room-wall"><h2>Living room</h2><p>Play Estuary Glide on the TV.</p></div><div class="tv"><canvas id="tv-game" width="480" height="270" aria-label="Estuary Glide game"></canvas><button id="tv-flap">Play</button></div><button id="house-exit">Go outside</button></div></dialog>
+<dialog id="wardrobe" aria-labelledby="wardrobe-title" style="width:min(360px,92vw);background:#173a36;color:#fff5df;border:1px solid #97b8a4;border-radius:18px;padding:18px">
+<form method="dialog"><h2 id="wardrobe-title">Wardrobe</h2><div id="wardrobe-options" style="display:grid;gap:10px;margin-bottom:16px"></div><button>Done</button></form>
+</dialog>
 <dialog id="sprite-dialog" aria-labelledby="sprite-title">
 <h2 id="sprite-title">Estuary Sprites</h2>
 <p id="sprite-note" role="status"></p>
@@ -98,7 +101,8 @@ const carSpawns=[
   [{style:"ute",paint:"#b26b54",name:"Copper ute"},355,272],
   [{style:"wagon",paint:"#597b94",name:"Blue wagon"},349,279],
   [{vehicleMode:"Bus",name:"Australind bus"},358,282],
-  [{style:"coupe",paint:"#365a99",name:"Blue sports coupe"},362,272]
+  [{style:"coupe",paint:"#365a99",name:"Blue sports coupe"},362,272],
+  [{style:"coupe",paint:"#bd292c",name:"Red track coupe"},364,276]
 ];
 for(const [item,x,y] of carSpawns) Object.assign(item,{x,y,heading:0});
 let drivenCar=null;
@@ -468,6 +472,19 @@ function limb(faces,a,b,widthA,widthB,color){
   }
   faces.push([shade(color,1.02),...upper]);
 }
+const outfitOptions={
+  top:{label:"Top",items:[["Brown plaid","#55443c"],["Blue jacket","#36526b"],["Green hoodie","#546644"],["Red shirt","#974a40"]]},
+  pants:{label:"Trousers",items:[["Dark jeans","#364550"],["Black jeans","#303337"],["Khaki chinos","#887750"]]},
+  hat:{label:"Hat",items:[["No hat",null],["Blue cap","#446d86"],["Sand bucket hat","#ae946b"]]},
+  shoes:{label:"Shoes",items:[["Cream sneakers","#ddd8cc"],["Black trainers","#373a39"],["Brown boots","#795945"]]},
+  pack:{label:"Backpack",items:[["No backpack",null],["Olive backpack","#717b52"],["Blue backpack","#466782"],["Rust backpack","#954e3f"]]}
+};
+const outfit={top:0,pants:0,hat:0,shoes:0,pack:0};
+try{
+  const saved=JSON.parse(localStorage.getItem("australind-outfit")||"{}");
+  for(const key of Object.keys(outfit)) if(Number.isInteger(saved?.[key])&&outfitOptions[key].items[saved[key]]) outfit[key]=saved[key];
+}catch{}
+const outfitColor=key=>outfitOptions[key].items[outfit[key]][1];
 const characterLooks=[
   {skin:"#d2a180",hair:"#4a392e",pants:"#4d6273",shoe:"#ddd8cc"},
   {skin:"#a36e52",hair:"#302726",pants:"#444d45",shoe:"#7b6556"},
@@ -477,9 +494,13 @@ const characterLooks=[
 function person(p,color,name){
   const isPlayer=!name&&p.walkPhase===undefined;
   p={...p,modelScale:.06,lit:isPlayer&&player.mode==="On foot"?"clothing":null};
+  if(isPlayer) color=outfitColor("top");
   const seed=parseInt(color.slice(1),16);
   const look=characterLooks[isPlayer?0:seed%characterLooks.length];
-  const {skin,hair,pants,shoe}=look;
+  const {skin,hair}=look;
+  const pants=isPlayer?outfitColor("pants"):look.pants;
+  const shoe=isPlayer?outfitColor("shoes"):look.shoe;
+  const seam=shade(pants,.77);
   const phase=p.walkPhase??stride;
   const walking=p.walkPhase!==undefined||(isPlayer&&moving&&player.mode==="On foot");
   const swing=walking?Math.sin(phase):0;
@@ -501,13 +522,37 @@ function person(p,color,name){
     const elbow=[side*3.55,-strideY*.5,13.9+bob];
     const wrist=[side*3.48,-strideY*.82-.25,11+bob];
     limb(faces,elbow,shoulder,.92,1.22,color);
-    limb(faces,wrist,elbow,.64,.85,skin);
-    if(close) ellipsoid(faces,wrist[0],wrist[1],wrist[2]-.55,.67,.62,.91,skin,6);
+    limb(faces,wrist,elbow,.64,.85,isPlayer?color:skin);
+    if(close){
+      ellipsoid(faces,wrist[0],wrist[1],wrist[2]-.55,.67,.62,.91,skin,6);
+      const outer=x+side*1.02, y=knee[1];
+      faces.push([seam,[outer,y+.18,knee[2]-.3],[outer+side*.03,y+.28,knee[2]-.3],
+        [outer+side*.25,.33,hip[2]-.4],[outer+side*.25,.24,hip[2]-.4]]);
+      faces.push([shade(shoe,.82),[x-.65,strideY-1.56,1.53+lift],[x+.65,strideY-1.56,1.53+lift],
+        [x+.45,strideY-1.19,1.73+lift],[x-.45,strideY-1.19,1.73+lift]]);
+    }
   }
-  ringMesh(faces,[
+  const shirtRings=[
     [10.2+bob,0,.15,2.48,1.36],[13+bob,0,0,2.38,1.29],
     [16.7+bob,0,-.05,3.13,1.65],[18+bob,0,0,1.39,1.05]
-  ],color,close?10:6);
+  ];
+  ringMesh(faces,shirtRings,color,close?10:6);
+  if(close&&isPlayer&&outfit.top===0){
+    const bands=["#372e2c","#6c5547"];
+    for(let row=1;row<shirtRings.length;row++){
+      const sample=(i,t)=>{
+        const [z,x,y,rx,ry]=shirtRings[row-1], [tz,tx,ty,trx,tryy]=shirtRings[row];
+        const a=i*Math.PI/5;
+        return [x+(tx-x)*t+(rx+(trx-rx)*t+.035)*Math.cos(a),
+          y+(ty-y)*t+(ry+(tryy-ry)*t+.035)*Math.sin(a),z+(tz-z)*t];
+      };
+      const edge=(i,u,t)=>sample(i,t).map((v,k)=>v+(sample(i+1,t)[k]-v)*u);
+      for(let i=0;i<10;i++){
+        for(const t of [.23,.67]) faces.push([bands[0],sample(i,t),sample(i+1,t),sample(i+1,t+.085),sample(i,t+.085)]);
+        faces.push([bands[1],edge(i,.43,0),edge(i,.54,0),edge(i,.54,1),edge(i,.43,1)]);
+      }
+    }
+  }
   limb(faces,[0,0,17.8+bob],[0,0,19.55+bob],.87,.93,skin);
   ringMesh(faces,[
     [18.85+bob,0,-.22,.76,.79],[19.65+bob,0,-.30,1.42,1.12],
@@ -534,20 +579,41 @@ function person(p,color,name){
         [x+.56,y+.97,6.57],[x-.52,y+.97,6.57]]);
     }
   }
-  if(close && isPlayer){
-    solid(faces,-2.04,1.08,4.08,1.36,11.4+bob,16.3+bob,"#727b4d","#565b3c");
-    solid(faces,-1.78,2.27,3.56,.36,12.0+bob,14.18+bob,"#808462","#65694d");
-    // Canvas seams, a zipper and webbing give the pack depth at chase-camera distance.
-    for(const x of [-1.45,1.45]){
-      solid(faces,x-.16,2.62,.32,.10,12.15+bob,15.8+bob,"#969879","#424b36");
-      solid(faces,x-.34,2.73,.68,.12,13.1+bob,13.55+bob,"#a8a99a","#4e564b");
+  if(close){
+    const mouth=shade(skin,.65);
+    faces.push([mouth,[-.39,-1.47,19.92+bob],[.39,-1.47,19.92+bob],
+      [.28,-1.48,19.81+bob],[-.28,-1.48,19.81+bob]]);
+    for(const x of [-.68,.68]){
+      faces.push([shade(hair,1.08),[x-.28,-1.49,21.67+bob],[x+.28,-1.49,21.67+bob],
+        [x+.20,-1.47,21.76+bob],[x-.19,-1.47,21.79+bob]]);
     }
-    faces.push(["#404a3a",[-1.44,2.65,14.56+bob],[1.44,2.65,14.56+bob],
-      [1.44,2.65,14.69+bob],[-1.44,2.65,14.69+bob]]);
-    solid(faces,-.74,2.17,1.48,.35,15.24+bob,15.79+bob,"#c7ad78","#8f7952");
-    for(const x of [-1.42,1.42]){
-      faces.push(["#454c39",[x-.13,-1.34,12.6+bob],[x+.13,-1.34,12.6+bob],
-        [x+.2,-1.62,17.25+bob],[x-.2,-1.62,17.25+bob]]);
+  }
+  if(isPlayer){
+    const hat=outfitColor("hat"), pack=outfitColor("pack");
+    if(hat){
+      ringMesh(faces,[[22.5+bob,0,0,1.9,1.6],[23.8+bob,0,.05,1.73,1.42],[24.3+bob,0,.1,1.13,1.03]],hat,10);
+      if(outfit.hat===1){
+        faces.push([shade(hat,.85),[-1.58,-.48,22.6+bob],[1.58,-.48,22.6+bob],
+          [1.26,-2.22,22.37+bob],[0,-2.62,22.32+bob],[-1.26,-2.22,22.37+bob]]);
+      }else{
+        ringMesh(faces,[[22.22+bob,0,0,2.47,2.05],[22.57+bob,0,0,1.88,1.59]],hat,10);
+      }
+    }
+    if(pack){
+      solid(faces,-1.96,1.03,3.92,1.42,11.52+bob,16.3+bob,shade(pack,1.12),pack);
+      solid(faces,-1.57,2.32,3.14,.38,12+bob,14.2+bob,pack,shade(pack,.82));
+      for(const x of [-1.4,1.12]){
+        solid(faces,x,-1.49,.28,.19,13+bob,17.3+bob,shade(pack,1.23),shade(pack,.77));
+      }
+    }
+  }
+  if(close&&isPlayer){
+    const collar=shade(color,1.13);
+    for(const side of [-1,1]){
+      faces.push([collar,[side*.23,-1.06,17.48+bob],[side*1.19,-1.08,18.08+bob],[side*.94,-1.63,16.88+bob]]);
+    }
+    for(let z=12;z<17;z+=.9){
+      faces.push(["#b6a396",[-.10,-1.49,z+bob],[.10,-1.49,z+bob],[.10,-1.49,z+.16+bob],[-.10,-1.49,z+.16+bob]]);
     }
   }
   mesh(p,faces);
@@ -572,6 +638,26 @@ function carBody(model,paint,coupe){
     }
   }
   model.push([shade(paint,.92),...rows[0]],[shade(paint,.84),...rows.at(-1)]);
+}
+function alloyWheel(model,side,y,wide){
+  const centerZ=3.75,r=wide?3.75:3.45;
+  const outer=side*(wide?10.65:9.85), inner=outer-side*2.65;
+  const circular=(x,radius,a)=>[x,y+Math.cos(a)*radius,centerZ+Math.sin(a)*radius];
+  for(let i=0;i<16;i++){
+    const a=i*Math.PI/8,b=(i+1)*Math.PI/8;
+    const p=circular(outer,r*.91,a),q=circular(outer,r*.91,b);
+    model.push(["#232629",p,q,circular(inner,r,b),circular(inner,r,a)],
+      ["#343839",p,q,circular(outer,r*.72,b),circular(outer,r*.72,a)]);
+  }
+  const cap=Array.from({length:16},(_,i)=>circular(outer+side*.01,r*.72,i*Math.PI/8));
+  model.push(["#2f363b",...cap]);
+  const face=outer+side*.06;
+  for(let i=0;i<10;i++){
+    const a=i*Math.PI/5;
+    model.push([i%2?"#a4adb2":"#718087",circular(face,.65,a-.22),circular(face,r*.7,a+.12),
+      circular(face,r*.7,a+.23),circular(face,.65,a+.22)]);
+  }
+  model.push(["#bdc4c7",...Array.from({length:8},(_,i)=>circular(face+side*.04,.55,i*Math.PI/4))]);
 }
 function vehicle(p,mode){
   p={...p,modelScale:.08};
@@ -599,10 +685,7 @@ function vehicle(p,mode){
     }
   }else if(mode==="Car"){
     carBody(model,paint,coupe);
-    for(const x of [-9,7]) for(const y of [-12,8]){
-      ellipsoid(model,x+1.5,y+3,3.8,1.9,3.6,3.65,"#313938",10);
-      ellipsoid(model,x+(x<0?.3:2.8),y+3,3.8,.75,2.25,2.25,"#929d99",8);
-    }
+    for(const side of [-1,1]) for(const y of [-9,11]) alloyWheel(model,side,y,coupe);
     const belt=coupe?8.1:10;
     const a=[-7,-9,belt], b=[7,-9,belt], c=[7,10,belt], d=[-7,10,belt];
     const rear=p.style==="ute"?0:p.style==="wagon"?9:coupe?3.5:5;
@@ -630,7 +713,15 @@ function vehicle(p,mode){
         [side*6.025,.65,roof-.06],[side*6.025,-.6,roof-.06]]);
     }
     if(coupe){
-      // Rear diffuser, continuous light bar and sculpted side intakes.
+      if(paint==="#bd292c"){
+        solid(model,-10.2,14.7,20.4,3.8,12.1,12.6,shade(paint,1.09),"#292c30");
+        for(const x of [-6.7,5.6]) solid(model,x,15.4,1.1,1.6,8.1,12.18,"#3b4246","#23292c");
+      }
+      for(const x of [-1.0,1.0]){
+        const outlet=(r,i)=>[x+Math.cos(i*Math.PI/4)*r,19.13,4.67+Math.sin(i*Math.PI/4)*r];
+        model.push(["#a6adae",...Array.from({length:8},(_,i)=>outlet(.59,i))]);
+        model.push(["#202427",...Array.from({length:8},(_,i)=>{const p=outlet(.40,i);p[1]+=.035;return p;})]);
+      }
       model.push(["#1c262a",[-8,18.87,5.08],[8,18.87,5.08],[7,18.87,6.05],[-7,18.87,6.05]],
         ["#9c342d",[-8.25,18.92,6.75],[8.25,18.92,6.75],[8,18.92,7.55],[-8,18.92,7.55]],
         ["#ff8672",[-7.4,18.94,7.13],[7.4,18.94,7.13],[7.4,18.94,7.42],[-7.4,18.94,7.42]],
@@ -1840,6 +1931,33 @@ spriteUI.challenge.onclick=startSpriteDuel;
 for(const move of duelMoves) spriteUI[move].onclick=()=>playSpriteMove(move);
 spriteDialog.addEventListener("close",()=>pressed.clear());
 refreshSpriteJournal();
+const wardrobe=document.getElementById("wardrobe");
+const wardrobeOptions=document.getElementById("wardrobe-options");
+for(const [key,{label,items}] of Object.entries(outfitOptions)){
+  const row=document.createElement("label");
+  row.style.display="grid";
+  row.textContent=label;
+  const select=document.createElement("select");
+  select.style.cssText="font:inherit;padding:8px;border-radius:7px;margin-top:4px";
+  items.forEach(([name],index)=>{
+    const option=document.createElement("option");
+    option.value=String(index);option.textContent=name;
+    select.append(option);
+  });
+  select.value=String(outfit[key]);
+  select.onchange=()=>{
+    outfit[key]=Number(select.value);
+    try{localStorage.setItem("australind-outfit",JSON.stringify(outfit));}catch{}
+    draw();
+  };
+  row.append(select);
+  wardrobeOptions.append(row);
+}
+document.getElementById("wardrobe-open").onclick=()=>{
+  pressed.clear();
+  wardrobe.showModal();
+};
+wardrobe.addEventListener("close",()=>pressed.clear());
 const houseDialog=document.getElementById("house");
 const tv=document.getElementById("tv-game").getContext("2d");
 const tvFlap=document.getElementById("tv-flap");
@@ -1917,7 +2035,7 @@ function drawTv(){
 }
 
 addEventListener("keydown",event=>{
-  if(houseDialog.open||spriteDialog.open) return;
+  if(houseDialog.open||spriteDialog.open||wardrobe.open) return;
   if(keys[event.key.toLowerCase()]){
     event.preventDefault();
     pressed.add(keys[event.key.toLowerCase()]);
@@ -1960,7 +2078,7 @@ function frame(now){
   const dt=Math.min(.05,(now-previous)/1000);
   previous=now;
   if(houseDialog.open) advanceTv(dt);
-  else if(!spriteDialog.open){
+  else if(!spriteDialog.open&&!wardrobe.open){
     update(dt);
     draw();
   }
