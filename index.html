@@ -60,16 +60,25 @@ header{z-index:1;left:0;right:0;display:grid;place-items:center;pointer-events:n
 #sprite-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 10px;padding-left:21px;font-size:14px}
 #sprite-book{margin-top:6px;min-height:38px}
 #visual-quality{margin:6px 0 0;min-height:36px;font-size:13px}
+#room-dialog{width:min(420px,93vw);background:#173a36;color:#fff5df;border:1px solid #97b8a4;border-radius:16px;padding:18px}#room-dialog button{margin:4px 0}#room-dialog input{width:10ch;padding:8px;font:inherit;text-transform:uppercase}#room-dialog::backdrop{background:#142c2eaa}#actions{max-width:58vw;flex-wrap:wrap;justify-content:flex-end}#hint #street{margin:0;max-width:none}
 </style>
 </head>
 <body>
 <canvas id="world" aria-label="Perspective 3D Australind foreshore game"></canvas>
-<header><span id="street">Ridley Place Foreshore</span></header>
-<button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p><button id="sprite-book">Sprite journal <span id="sprite-count">0/50</span></button><button id="wardrobe-open">Wardrobe</button><button id="visual-quality" aria-pressed="true">Graphics: Sharp</button></section>
-<div class="panel" id="hint" aria-live="polite"><span id="prompt">Explore the foreshore.</span><small id="keys"><br>W / ↑ forward · S / ↓ reverse · A D / ← → turn · E to interact · Space to jump</small></div>
-<div id="touch"><div id="pad"><button data-key="up" aria-label="Move forward">▲</button><button data-key="left" aria-label="Turn left">◀</button><button data-key="down" aria-label="Move backward">▼</button><button data-key="right" aria-label="Turn right">▶</button></div></div><div id="actions"><button id="action">Interact</button><button id="jump" hidden>Jump</button><button id="reset">Return to park</button></div>
+
+<button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p><button id="sprite-book">Sprite journal <span id="sprite-count">0/50</span></button><button id="wardrobe-open">Wardrobe</button><button id="room-open">Explore together</button><button id="visual-quality" aria-pressed="true">Graphics: Sharp</button></section>
+<div class="panel" id="hint" aria-live="polite"><strong id="street" style="display:block">Ridley Place Foreshore</strong><span id="prompt">Explore the foreshore.</span><small id="keys"><br>W / ↑ forward · S / ↓ reverse · A D / ← → turn · E to interact · Space to jump · R/F climb/descend</small></div>
+<div id="touch"><div id="pad"><button data-key="up" aria-label="Move forward">▲</button><button data-key="left" aria-label="Turn left">◀</button><button data-key="down" aria-label="Move backward">▼</button><button data-key="right" aria-label="Turn right">▶</button></div></div><div id="actions"><button id="action">Interact</button><button id="jump" hidden>Jump</button><button id="climb" hidden>Climb</button><button id="descend" hidden>Descend</button><button id="reset">Return to park</button></div>
 <aside id="gps" aria-label="GPS overview"><canvas id="gps-map" width="240" height="180" aria-label="Zoomed-out map centred on your location"></canvas><details id="map-info" open><summary aria-label="Map data information">ⓘ</summary><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap · ODbL</a> · <a href="https://open-meteo.com/en/docs/elevation-api" target="_blank" rel="noopener">Elevation: Copernicus DEM via Open-Meteo</a></details></aside>
 <dialog id="house"><div class="room"><div class="room-wall"><h2>Living room</h2><p>Play Estuary Glide on the TV.</p></div><div class="tv"><canvas id="tv-game" width="480" height="270" aria-label="Estuary Glide game"></canvas><button id="tv-flap">Play</button></div><button id="house-exit">Go outside</button></div></dialog>
+<dialog id="room-dialog" aria-labelledby="room-title">
+  <h2 id="room-title">Explore together</h2>
+  <p>Host on one iPad, then enter its room code on the other.</p>
+  <p id="room-status" role="status">Offline</p>
+  <button id="room-host">Host a room</button>
+  <div><label>Room code <input id="room-code" maxlength="8" autocomplete="off" autocapitalize="characters"></label> <button id="room-join">Join</button></div>
+  <button id="room-leave">Leave room</button> <button id="room-close">Back to map</button>
+</dialog>
 <dialog id="wardrobe" aria-labelledby="wardrobe-title" style="width:min(360px,92vw);background:#173a36;color:#fff5df;border:1px solid #97b8a4;border-radius:18px;padding:18px">
 <form method="dialog"><h2 id="wardrobe-title">Wardrobe</h2><div id="wardrobe-options" style="display:grid;gap:10px;margin-bottom:16px"></div><button>Done</button></form>
 </dialog>
@@ -102,6 +111,23 @@ const motorbikes=[
 const motorbikeSpawns=motorbikes.map(p=>({...p}));
 let drivenMotorbike=null,jumpTime=0;
 const jumpDuration=.82;
+const planes=[
+  {name:"Estuary trainer",x:750,y:565,heading:0,paint:"#e5c378"},
+  {name:"Coastal scout",x:803,y:564,heading:0,paint:"#85b4b0"}
+];
+let drivenPlane=null, flightAltitude=0;
+function beginFlight(plane){
+  drivenPlane=plane;
+  flightAltitude=heightAt(plane.x,plane.y)+6;
+  Object.assign(player,{x:plane.x,y:plane.y,heading:plane.heading,mode:"Plane"});
+}
+function endFlight(){
+  const plane=drivenPlane||planes[0];
+  Object.assign(player,{x:plane.x+5,y:plane.y,mode:"On foot"});
+  drivenPlane=null;
+  flightAltitude=0;
+}
+function planeLift(x,y){return Math.max(.4,flightAltitude-heightAt(x,y));}
 function canJump(){return player.mode==="Car"||player.mode==="Bike";}
 function jumpHeight(){
   const t=jumpTime/jumpDuration;
@@ -185,7 +211,8 @@ function cameraPoint(x,y,z=0){
   const east=x-camera.x, south=y-camera.y;
   const dx=east*camera.cos+south*camera.sin;
   const dy=-east*camera.sin+south*camera.cos-chaseDistance()*camera.scale;
-  const dz=z+heightAt(x,y)-terrainEye-chaseHeight()*camera.scale;
+  const flightView=player.mode==="Plane"?Math.max(.4,flightAltitude-terrainEye)*.80:0;
+  const dz=z+heightAt(x,y)-terrainEye-chaseHeight()*camera.scale-flightView;
   return [dx,-dy*sinTilt+dz*cosTilt,-dy*cosTilt-dz*sinTilt];
 }
 function screenPoint([x,y,depth]){
@@ -907,10 +934,10 @@ function beginActivity(site){
   notice = "";
   shot = null;
   if(active==="Hedge maze") Object.assign(player,{x:690,y:534});
-  if(active==="Estuary flight") player.mode="Plane";
+  if(active==="Estuary flight") beginFlight(planes[0]);
 }
 function cancelActivity(){
-  if(player.mode==="Plane") Object.assign(player,{x:750,y:570,mode:"On foot"});
+  if(player.mode==="Plane") endFlight();
   active=null;
   shot=null;
   bounce=0;
@@ -919,7 +946,7 @@ function cancelActivity(){
 function finishActivity(){
   earned.add(active);
   notice = active+" complete! ★ "+earned.size+"/5";
-  if(active==="Estuary flight") Object.assign(player,{x:750,y:570,mode:"On foot"});
+  if(active==="Estuary flight") endFlight();
   active = null;
 }
 function activityAction(){
@@ -1615,6 +1642,19 @@ function addForeshoreObjects(objects){
   }]);
 }
 
+function drawPlane(p,paint,lift){
+  const frame=[];
+  ringMesh(frame,[[36,0,0,2.6,11],[39,0,0,3.4,15],[43,0,-.6,3.15,13],[45,0,-2,1.7,8]],paint,10);
+  solid(frame,-2,-12,4,8,44,47,"#74939a","#4f777d");
+  frame.push(
+    [paint,[0,-5,42],[-23,-2,42],[-23,2,42],[0,5,42]],
+    [paint,[0,-5,42],[23,-2,42],[23,2,42],[0,5,42]],
+    ["#9d5146",[0,8,44],[0,13,53],[0,14,43]],
+    ["#e6d8ab",[-8,9,43],[8,9,43],[7,13,43],[-7,13,43]],
+    ["#273738",[-6,-15.25,40],[6,-15.25,40],[6,-15.25,40.65],[-6,-15.25,40.65]]
+  );
+  mesh({...p,modelScale:.10,airLift:lift-3.5},frame);
+}
 function draw(){
   const horizon=height*.64-focal*Math.tan(tilt);
   const sky=ctx.createLinearGradient(0,0,0,Math.max(1,horizon+20));
@@ -1670,6 +1710,14 @@ function draw(){
   }
   addAmbientActors(objects);
   addEstuarySprites(objects);
+  addRemoteTraveller(objects);
+  for(const plane of planes){
+    if(plane===drivenPlane) continue;
+    objects.push([plane,()=>{
+      drawPlane(plane,plane.paint,0);
+      if(distance(player,plane)<12) label(plane.x,plane.y,2.3,plane.name);
+    }]);
+  }
   for(const boat of shoreBoats){
     if(boat===drivenBoat) continue;
     objects.push([boat,()=>{
@@ -1690,16 +1738,7 @@ function draw(){
       return;
     }
     if(player.mode==="Plane"){
-      const airframe=[];
-      solid(airframe,-3,-15,6,29,39,44,"#f2e4be","#ad8655");
-      solid(airframe,-2,-12,4,8,44,47,"#74939a","#4f777d");
-      airframe.push(
-        ["#ded3ac",[0,-5,43],[-22,-2,43],[-22,2,43],[0,5,43]],
-        ["#e9ddb7",[0,-5,43],[22,-2,43],[22,2,43],[0,5,43]],
-        ["#aa5945",[0,8,44],[0,13,53],[0,14,44]],
-        ["#e6d8ab",[-8,9,44],[8,9,44],[7,13,44],[-7,13,44]]
-      );
-      mesh({...player,modelScale:.10},airframe);
+      drawPlane(player,(drivenPlane||planes[0]).paint,planeLift(player.x,player.y));
       return;
     }
     const airLift=jumpHeight();
@@ -1727,7 +1766,10 @@ function action(){
   if(player.mode==="Car" && delivery===1 && near(picnic)) return ["Deliver picnic",()=>{delivery=2;}];
   const extra=activityAction();
   if(extra) return extra;
-  if(player.mode==="Plane") return ["Land at airstrip",cancelActivity];
+  if(player.mode==="Plane"){
+    const plane=drivenPlane||planes[0];
+    return distance(player,plane)<18?["Land at airstrip",cancelActivity]:["Return to the airstrip to land",null];
+  }
   if(hunt===1 && near(chest)) return ["Open treasure",()=>{hunt=2;}];
   if(near(scout) && hunt===0) return ["Talk to Scout",()=>{hunt=1;}];
   if(near(riley) && (race<0 || race>=route.length) && player.mode==="Bike"&&!drivenMotorbike){
@@ -1743,6 +1785,8 @@ function action(){
   if(sprite) return ["Meet "+sprite.name,()=>openSpriteDialog(sprite)];
   if(!active && near(bike)&&!motorbikes.some(p=>distance(player,p)<2.75)) return ["Ride bike",()=>enterVehicle(bike,"Bike")];
   if(!active){
+    const plane=planes.find(p=>distance(player,p)<5);
+    if(plane) return ["Fly "+plane.name,()=>beginFlight(plane)];
     const motorcycle=motorbikes.find(p=>distance(player,p)<2.75);
     if(motorcycle) return ["Ride "+motorcycle.name,()=>enterVehicle(motorcycle,"Bike")];
     const parked=carSpawns.map(([item])=>item).filter(near)
@@ -1763,6 +1807,7 @@ function enterVehicle(vehicle,mode){
 }
 function leaveVehicle(){
   if(player.mode==="On foot") return;
+  if(player.mode==="Plane"){endFlight();return;}
   if(player.mode==="Boat"){
     leaveBoat(drivenBoat.dock);
     return;
@@ -1787,6 +1832,14 @@ function update(dt){
   const vertical = Number(pressed.has("down"))-Number(pressed.has("up"));
   const drivingBus=drivenCar?.vehicleMode==="Bus";
   const speed=player.mode==="Plane"?42:player.mode==="Car"?(drivingBus?(vertical>0?8:24):(vertical>0?14:44)):player.mode==="Bike"?(drivenMotorbike?28:9):player.mode==="Boat"?21:4.4;
+  const altitudeInput=Number(pressed.has("climb"))-Number(pressed.has("descend"));
+  if(player.mode==="Plane"){
+    const minimum=heightAt(player.x,player.y)+1.1;
+    const proposed=Math.max(minimum,Math.min(116,flightAltitude+altitudeInput*13*dt));
+    if(proposed>=flightAltitude || !blocksObjects(player,player,proposed)) flightAltitude=proposed;
+  }
+  document.getElementById("climb").hidden=player.mode!=="Plane";
+  document.getElementById("descend").hidden=player.mode!=="Plane";
   const turnRate=player.mode==="Car"?(drivingBus?1.32:2.2):player.mode==="Plane"?2.05:3;
   player.heading=(player.heading||0)+horizontal*dt*turnRate;
   const forward=-vertical;
@@ -1798,10 +1851,14 @@ function update(dt){
   const edge=player.mode==="Plane"?-110:jetty&&player.mode==="On foot"?Math.min(jetty[0][0],jetty[1][0]):waterEdge(y)+.5;
   const nextX=player.x+Math.sin(player.heading)*forward*dt*speed;
   const x=player.mode==="Boat"?Math.max(-730,Math.min(waterEdge(y)-1.7,nextX)):Math.max(edge,Math.min(2440,nextX));
-  const blocked = (px,py) => player.mode!=="Plane" && player.mode!=="Boat" && hedges.some(([hx,hy,w,d]) =>
-    px>hx-3 && px<hx+w+3 && py>hy-3 && py<hy+d+3);
-  const target={x:blocked(x,player.y)?player.x:x,y};
-  if(blocked(target.x,y)) target.y=player.y;
+  const target={x,y};
+  const altitude=player.mode==="Plane"?flightAltitude:null;
+  const objectStop=forward&&blocksObjects(player,target,altitude);
+  if(objectStop){
+    if(!blocksObjects(player,{x,y:player.y},altitude)) target.y=player.y;
+    else if(!blocksObjects(player,{x:player.x,y},altitude)) target.x=player.x;
+    else Object.assign(target,{x:player.x,y:player.y});
+  }
   const driving=player.mode==="Car"||player.mode==="Bike";
   const stopped=driving&&forward&&activePedestrians().some(p=>personBlocks(player,target,p,drivingBus?4.6:2.7));
   if(!stopped) Object.assign(player,target);
@@ -1826,7 +1883,7 @@ function update(dt){
   say(ui.race,race>=route.length ? (raceTime<=finishTime?"🏁 You won the bike race!":"🏁 You finished the bike race!") : race>=0 ? "🚲 Checkpoint "+(race+1)+" of "+route.length : "🚲 Ride a bike over to Riley to race.");
   say(ui.hunt,hunt===2?"⭐ You found the treasure!":hunt===1?"🧭 Look near the land end of the jetty.":"🧭 Find Scout to start the treasure hunt.");
   const [message]=action();
-  say(ui.prompt,stopped?"Giving way to pedestrians":message||"Explore the foreshore");
+  say(ui.prompt,stopped?"Giving way to pedestrians":objectStop?"Blocked by an object":message||"Explore the foreshore");
   say(document.querySelector("#action"),message||"Interact");
 }
 const gps = document.getElementById("gps-map").getContext("2d");
@@ -1864,6 +1921,10 @@ function updateGps(dt){
   for(const boat of shoreBoats){
     gps.fillStyle=boat.paint;
     gps.fillRect(mx(boat.dock.x)-3,my(boat.dock.y)-3,6,6);
+  }
+  if(remoteTraveller){
+    gps.fillStyle="#2561a0";
+    gps.beginPath();gps.arc(mx(remoteTraveller.x),my(remoteTraveller.y),4,0,Math.PI*2);gps.fill();
   }
   gps.save();
   gps.translate(w/2,h/2);
@@ -1917,6 +1978,65 @@ function leaveBoat(dock){
   pressed.clear();
 }
 
+function footprintContains(p,outline){
+  let inside=false;
+  for(let i=0,j=outline.length-1;i<outline.length;j=i++){
+    const [ax,ay]=outline[i],[bx,by]=outline[j];
+    if((ay>p.y)!==(by>p.y)&&p.x<(bx-ax)*(p.y-ay)/(by-ay)+ax) inside=!inside;
+  }
+  return inside;
+}
+function localBuildings(p,r=1){
+  const cx=Math.floor(p.x/chunkSize),cy=Math.floor(p.y/chunkSize),result=[];
+  for(let x=cx-r;x<=cx+r;x++) for(let y=cy-r;y<=cy+r;y++){
+    result.push(...(townChunks.get(x+","+y)||[]));
+  }
+  return result;
+}
+function buildingContains(point,building,padding){
+  if(footprintContains(point,building.outline)) return true;
+  return building.outline.some(([x,y],i)=>{
+    const [tx,ty]=building.outline[(i+1)%building.outline.length];
+    return segmentGap({x,y},{x:tx,y:ty},point)<padding;
+  });
+}
+const solidTrees=[
+  ...trees.map(t=>({x:t.x<300?waterEdge(t.y)+9+t.x%23:t.x,y:t.y})),
+  ...mapMarkers.filter(([, ,type])=>type==="tree").map(([x,y])=>({x,y}))
+];
+function blocksObjects(from,to,altitude){
+  const flying=altitude!==null;
+  if(player.mode==="Boat"){
+    return [...shoreBoats,...boats].some(boat=>boat!==drivenBoat&&personBlocks(from,to,boat,2.5));
+  }
+  const margin=flying?2.4:player.mode==="Car"?1.05:player.mode==="Bike"?.55:.27;
+  const moving=distance(from,to)>1e-5;
+  const collision=(center,tall,contains)=>{
+    if(flying&&altitude>heightAt(center.x,center.y)+tall+.55) return false;
+    if(!contains(to)) return false;
+    return !moving||!contains(from)||distance(to,center)<=distance(from,center)+.0001;
+  };
+  if(flying&&altitude<heightAt(to.x,to.y)+.8) return true;
+  for(const building of localBuildings(to)){
+    if(distance(to,building)>49) continue;
+    if(collision(building,building.h+(building.house?1.5:0),p=>buildingContains(p,building,margin))) return true;
+  }
+  for(const [x,y,w,d] of hedges){
+    const center={x:x+w/2,y:y+d/2};
+    if(collision(center,20,p=>p.x>x-margin&&p.x<x+w+margin&&p.y>y-margin&&p.y<y+d+margin)) return true;
+  }
+  for(const tree of solidTrees){
+    if(distance(to,tree)>5) continue;
+    if(collision(tree,13,p=>distance(p,tree)<margin+(flying?2.1:.48))) return true;
+  }
+  if(!flying&&moving){
+    const parked=[...carSpawns.map(([car])=>car),...motorbikes,bike,...planes];
+    const hit=parked.some(vehicle=>vehicle!==drivenCar&&vehicle!==drivenMotorbike&&
+       !(vehicle===bike&&player.mode==="Bike"&&!drivenMotorbike)&&personBlocks(from,to,vehicle,margin+1.05));
+    if(hit) return true;
+  }
+  return false;
+}
 function houseNearPlayer(){
   const cx=Math.floor(player.x/chunkSize), cy=Math.floor(player.y/chunkSize);
   for(let x=cx-1;x<=cx+1;x++){
@@ -1986,6 +2106,48 @@ const estuarySprites=[
   {"name":"Rushruff","kind":"echidna","place":"Eastern neighbourhoods","x":1640,"y":-70,"paint":"#dac58b","trim":"#9b7351","form":0,"power":4},
   {"name":"Breezebill","kind":"possum","place":"Eastern neighbourhoods","x":1760,"y":-91,"paint":"#adacd0","trim":"#6d6395","form":3,"power":2}
 ];
+const explorationDistricts=[
+  [360,-640,"North estuary edge"],[470,-395,"Northern foreshore streets"],[485,-150,"Old Coast Road north"],
+  [418,635,"Old Coast Road south"],[347,805,"Southern estuary edge"],[420,1010,"South Australind"],
+  [680,-500,"North-west neighbourhood"],[730,-185,"North-west neighbourhood"],[660,650,"South-west neighbourhood"],
+  [840,965,"Southern neighbourhood"],[980,-620,"North Australind"],[1040,-290,"North Australind"],
+  [1030,450,"Central Australind"],[1120,765,"Central-south neighbourhood"],[1270,1040,"Southern neighbourhood"],
+  [1370,-590,"Northern neighbourhood"],[1400,-290,"North-central neighbourhood"],[1370,200,"Australind town centre"],
+  [1530,480,"Central-eastern neighbourhood"],[1450,815,"South-east neighbourhood"],[1690,-620,"Northern inland streets"],
+  [1760,-350,"Northern inland streets"],[1690,175,"Eastern neighbourhood"],[1720,650,"Eastern neighbourhood"],
+  [1670,1030,"South-east neighbourhood"],[1990,-570,"North-east neighbourhood"],[2020,-275,"North-east neighbourhood"],
+  [2010,100,"Eastern streets"],[1950,450,"Eastern streets"],[1940,810,"South-east neighbourhood"],
+  [2170,1040,"South-east neighbourhood"],[2240,-650,"Far north-east"],[2260,-400,"Far north-east"],
+  [2240,-90,"Far eastern streets"],[2310,224,"Far eastern streets"],[2190,555,"Far eastern streets"],
+  [2300,780,"Far south-east"],[2360,1020,"Far south-east"],[1540,-60,"Central Australind"],[1170,-35,"Paris Road neighbourhood"]
+];
+function placeExplorationSprites(){
+  for(const [i,[x,y,area]] of explorationDistricts.entries()){
+    const sprite=estuarySprites[i+10];
+    const candidates=[];
+    const cx=Math.floor(x/chunkSize),cy=Math.floor(y/chunkSize);
+    for(let a=cx-1;a<=cx+1;a++) for(let b=cy-1;b<=cy+1;b++){
+      for(const road of roadChunks.get(a+","+b)||[]){
+        const dx=road.tx-road.x,dy=road.ty-road.y,d=Math.hypot(dx,dy);
+        if(d<1.2) continue;
+        const px=(road.x+road.tx)/2,py=(road.y+road.ty)/2;
+        for(const side of [-1,1]){
+          const margin=(road.wide/2+1.6)*side;
+          candidates.push({x:px+dy/d*margin,y:py-dx/d*margin,name:road.name});
+        }
+      }
+    }
+    for(let ring=0;ring<=5;ring++) for(let step=0;step<8;step++){
+      const a=step*Math.PI/4;
+      candidates.push({x:x+Math.sin(a)*ring*13,y:y+Math.cos(a)*ring*13,name:""});
+    }
+    candidates.sort((a,b)=>(distance(a,{x,y})+(a.name?0:18))-(distance(b,{x,y})+(b.name?0:18)));
+    const chosen=candidates.find(p=>p.x>waterEdge(p.y)+2&&p.x<2438&&p.y>-944&&p.y<1216&&
+      !blocksObjects(p,p,null)&&!estuarySprites.slice(0,i+10).some(other=>distance(other,p)<28));
+    if(chosen) Object.assign(sprite,{x:chosen.x,y:chosen.y,place:chosen.name?chosen.name+" · "+area:area});
+  }
+}
+placeExplorationSprites();
 function paintSprite(g,s,x,y,r,flip=false){
   g.save();
   g.translate(x,y);
@@ -2263,6 +2425,129 @@ document.getElementById("wardrobe-open").onclick=()=>{
   wardrobe.showModal();
 };
 wardrobe.addEventListener("close",()=>pressed.clear());
+const roomDialog=document.getElementById("room-dialog");
+const roomStatus=document.getElementById("room-status");
+const roomCode=document.getElementById("room-code");
+let roomPeer=null,roomConnection=null,remoteTraveller=null,roomTask=0,roomSend=0,peerLibrary=null;
+const onlineModes=new Set(["On foot","Car","Bike","Motorbike","Plane","Boat","Bus"]);
+function loadPeerLibrary(){
+  if(window.Peer) return Promise.resolve();
+  if(!peerLibrary){
+    peerLibrary=new Promise((resolve,reject)=>{
+      const script=document.createElement("script");
+      script.src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js";
+      script.onload=()=>window.Peer?resolve():reject(Error("PeerJS failed to initialise"));
+      script.onerror=()=>{script.remove();reject(Error("Could not load the room service"));};
+      document.head.append(script);
+    }).catch(error=>{peerLibrary=null;throw error;});
+  }
+  return peerLibrary;
+}
+function leaveRoom(message="Offline"){
+  roomTask++;
+  const connection=roomConnection,peer=roomPeer;
+  roomConnection=null;roomPeer=null;remoteTraveller=null;
+  connection?.close();
+  peer?.destroy();
+  say(roomStatus,message);
+}
+function acceptTraveller(value){
+  if(!value||value.type!=="traveller"||!onlineModes.has(value.mode)||
+    ![value.x,value.y,value.heading,value.lift].every(Number.isFinite)) return;
+  if(value.x< -750||value.x>2442||value.y< -952||value.y>1222||
+    value.lift<0||value.lift>120||Math.abs(value.heading)>1000) return;
+  if(!remoteTraveller) remoteTraveller={x:value.x,y:value.y,heading:value.heading};
+  Object.assign(remoteTraveller,{toX:value.x,toY:value.y,toHeading:value.heading,mode:value.mode,lift:value.lift});
+}
+function attachRoomConnection(connection){
+  if(roomConnection){connection.close();return;}
+  roomConnection=connection;
+  connection.on("open",()=>{
+    if(roomConnection!==connection) return;
+    say(roomStatus,"Connected · You can return to the map.");
+    roomSend=0;
+    updateRoom(0);
+  });
+  connection.on("data",value=>{if(roomConnection===connection) acceptTraveller(value);});
+  const disconnected=()=>{
+    if(roomConnection===connection){roomConnection=null;remoteTraveller=null;say(roomStatus,"Friend disconnected.");}
+  };
+  connection.on("close",disconnected);
+  connection.on("error",disconnected);
+  setTimeout(()=>{
+    if(roomConnection===connection&&!connection.open){
+      roomConnection=null;connection.close();say(roomStatus,"Connection timed out. Try both iPads on the same Wi-Fi.");
+    }
+  },18000);
+}
+async function startRoom(host){
+  const code=host?Array.from(crypto.getRandomValues(new Uint8Array(8)),n=>"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[n%32]).join(""):
+    roomCode.value.trim().toUpperCase();
+  if(!/^[A-HJ-NP-Z2-9]{8}$/.test(code)){say(roomStatus,"Enter the eight-character room code.");return;}
+  leaveRoom("Connecting…");
+  const task=roomTask;
+  setTimeout(()=>{
+    if(task===roomTask&&(!roomPeer||!roomPeer.open)) leaveRoom("Room service timed out. Try again.");
+  },20000);
+  try{
+    await loadPeerLibrary();
+    if(task!==roomTask) return;
+    const peer=host?new window.Peer("australind-"+code):new window.Peer();
+    roomPeer=peer;
+    peer.on("open",()=>{
+      if(peer!==roomPeer) return;
+      if(host){
+        roomCode.value=code;
+        say(roomStatus,"Room "+code+" · Waiting for a friend");
+      }else attachRoomConnection(peer.connect("australind-"+code,{reliable:true,serialization:"json"}));
+    });
+    peer.on("connection",connection=>{
+      if(peer===roomPeer&&host) attachRoomConnection(connection);else connection.close();
+    });
+    peer.on("error",error=>{
+      if(peer===roomPeer) leaveRoom(error.type==="peer-unavailable"?"Room not found. Check the code.":"Could not connect. Try again.");
+    });
+    peer.on("disconnected",()=>{if(peer===roomPeer&&!roomConnection?.open) leaveRoom("Room service disconnected.");});
+  }catch{
+    if(task===roomTask) leaveRoom("Room service is unavailable. Solo play is still available.");
+  }
+}
+function updateRoom(dt){
+  if(remoteTraveller){
+    const easing=1-Math.exp(-dt*15);
+    remoteTraveller.x+=(remoteTraveller.toX-remoteTraveller.x)*easing;
+    remoteTraveller.y+=(remoteTraveller.toY-remoteTraveller.y)*easing;
+    const delta=remoteTraveller.toHeading-remoteTraveller.heading;
+    remoteTraveller.heading+=Math.atan2(Math.sin(delta),Math.cos(delta))*easing;
+  }
+  if(!roomConnection?.open) return;
+  roomSend-=dt;
+  if(roomSend>0) return;
+  roomSend=.10;
+  const mode=drivenMotorbike?"Motorbike":drivenCar?.vehicleMode||player.mode;
+  const lift=player.mode==="Plane"?planeLift(player.x,player.y):jumpHeight();
+  roomConnection.send({type:"traveller",x:player.x,y:player.y,mode,lift,heading:(player.heading||0)%(Math.PI*2)});
+}
+function addRemoteTraveller(objects){
+  const friend=remoteTraveller;
+  if(!friend||distance(friend,camera)>220) return;
+  objects.push([friend,()=>{
+    if(friend.mode==="Plane") drawPlane(friend,"#77b8c6",friend.lift);
+    else if(friend.mode==="Boat") drawBoat({...friend,paint:"#77b8c6"});
+    else if(friend.mode==="On foot") person(friend,"#527fa8","Friend");
+    else{
+      vehicle({...friend,paint:"#77b8c6",airLift:friend.lift},friend.mode);
+      label(friend.x,friend.y,2.6+friend.lift,"Friend");
+    }
+    if(friend.mode==="Plane"||friend.mode==="Boat") label(friend.x,friend.y,2+friend.lift,"Friend");
+  }]);
+}
+document.getElementById("room-open").onclick=()=>{pressed.clear();roomDialog.showModal();};
+document.getElementById("room-close").onclick=()=>roomDialog.close();
+document.getElementById("room-host").onclick=()=>startRoom(true);
+document.getElementById("room-join").onclick=()=>startRoom(false);
+document.getElementById("room-leave").onclick=()=>leaveRoom();
+roomDialog.addEventListener("close",()=>pressed.clear());
 const houseDialog=document.getElementById("house");
 const tv=document.getElementById("tv-game").getContext("2d");
 const tvFlap=document.getElementById("tv-flap");
@@ -2340,7 +2625,10 @@ function drawTv(){
 }
 
 addEventListener("keydown",event=>{
-  if(houseDialog.open||spriteDialog.open||wardrobe.open) return;
+  if(houseDialog.open||spriteDialog.open||wardrobe.open||roomDialog.open) return;
+  if(player.mode==="Plane"&&(event.code==="KeyR"||event.code==="KeyF")){
+    event.preventDefault();pressed.add(event.code==="KeyR"?"climb":"descend");return;
+  }
   if(event.code==="Space"&&canJump()){
     event.preventDefault();
     if(!event.repeat) jumpVehicle();
@@ -2352,7 +2640,11 @@ addEventListener("keydown",event=>{
   }
   if(event.key.toLowerCase()==="e" && !event.repeat) interact();
 });
-addEventListener("keyup",event=>pressed.delete(keys[event.key.toLowerCase()]));
+addEventListener("keyup",event=>{
+  pressed.delete(keys[event.key.toLowerCase()]);
+  if(event.code==="KeyR") pressed.delete("climb");
+  if(event.code==="KeyF") pressed.delete("descend");
+});
 addEventListener("blur",()=>pressed.clear());
 document.addEventListener("contextmenu",event=>event.preventDefault());
 document.querySelectorAll("[data-key]").forEach(button=>{
@@ -2367,6 +2659,11 @@ document.querySelectorAll("[data-key]").forEach(button=>{
 });
 document.getElementById("action").onclick=interact;
 document.getElementById("jump").onclick=jumpVehicle;
+for(const key of ["climb","descend"]){
+  const button=document.getElementById(key);
+  button.addEventListener("pointerdown",e=>{button.setPointerCapture(e.pointerId);pressed.add(key);});
+  for(const event of ["pointerup","pointercancel","lostpointercapture"]) button.addEventListener(event,()=>pressed.delete(key));
+}
 document.getElementById("reset").onclick=()=>{
   cancelActivity();
   leaveVehicle();
@@ -2391,9 +2688,10 @@ let previous = performance.now();
 function frame(now){
   const dt=Math.min(.05,(now-previous)/1000);
   previous=now;
+  updateRoom(dt);
   if(houseDialog.open) advanceTv(dt);
   else if(spriteDialog.open) advanceSpriteDuel(dt);
-  else if(!wardrobe.open){
+  else if(!wardrobe.open&&!roomDialog.open){
     update(dt);
     draw();
   }
