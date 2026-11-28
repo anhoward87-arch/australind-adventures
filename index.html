@@ -620,7 +620,19 @@ function person(p,color,name){
   if(name) label(p.x,p.y,2.4,name);
 }
 const vehicleModels=new Map();
-function carBody(model,paint,coupe){
+function blendProfile(rows,y){
+  const i=Math.max(0,Math.min(rows.length-2,rows.findIndex(row=>row[0]>y)-1));
+  const index=y>=rows.at(-1)[0]?rows.length-2:i;
+  const p=rows[index],q=rows[index+1],span=q[0]-p[0],t=Math.max(0,Math.min(1,(y-p[0])/span));
+  const before=rows[Math.max(0,index-1)],after=rows[Math.min(rows.length-1,index+2)];
+  return p.slice(1).map((v,k)=>{
+    const j=k+1;
+    const u=(q[j]-before[j])*span/(q[0]-before[0]);
+    const w=(after[j]-p[j])*span/(after[0]-p[0]);
+    return (2*t**3-3*t*t+1)*v+(t**3-2*t*t+t)*u+(-2*t**3+3*t*t)*q[j]+(t**3-t*t)*w;
+  });
+}
+function standardCarBody(model,paint,coupe){
   const sections=coupe?[
     [-19.2,7.7,4.1,5.7],[-17,9.6,3.8,7.1],[-9,10.4,3.45,8.4],
     [5.7,10.2,3.65,8.8],[14.7,10.55,4.15,9.2],[18.8,8.9,4.8,8.1]
@@ -638,6 +650,56 @@ function carBody(model,paint,coupe){
     }
   }
   model.push([shade(paint,.92),...rows[0]],[shade(paint,.84),...rows.at(-1)]);
+}
+function carBody(model,paint,coupe){
+  if(!coupe){standardCarBody(model,paint,false);return;}
+  const profile=[
+    [-19.2,7.65,5.9],[-17,9.45,7.05],[-10,10.45,8.45],[-4,9.5,8.65],
+    [3,9.35,8.55],[10.7,10.65,9.55],[15.3,10.35,9.3],[18.8,8.85,8.15]
+  ];
+  const start=profile[0][0],end=profile.at(-1)[0];
+  const wheels=[-9,11];
+  const subdivisions=52;
+  const rows=Array.from({length:subdivisions+1},(_,row)=>{
+    const y=start+(end-start)*row/subdivisions;
+    const [w,top]=blendProfile(profile,y);
+    const gap=Math.min(...wheels.map(p=>Math.abs(p-y)));
+    const arch=gap<4.05?3.75+Math.sqrt(4.05**2-gap**2):3.75;
+    return Array.from({length:15},(_,j)=>{
+      const angle=(j/14-.5)*Math.PI;
+      return [w*Math.sin(angle),y,arch+(top-arch)*Math.cos(angle)+.16*Math.sin(angle)**2];
+    });
+  });
+  for(let i=1;i<rows.length;i++) for(let j=0;j<14;j++){
+    model.push([paint,rows[i-1][j],rows[i][j],rows[i][j+1],rows[i-1][j+1]]);
+  }
+  model.push([shade(paint,.93),...rows[0]],[shade(paint,.85),...rows.at(-1)]);
+  for(const side of [-1,1]) for(const wheel of wheels){
+    for(let i=0;i<16;i++){
+      const bead=k=>{
+        const theta=k*Math.PI/16,y=wheel+Math.cos(theta)*4.05;
+        return [side*(blendProfile(profile,y)[0]+.13),y,3.91+Math.sin(theta)*4.05];
+      };
+      const p=bead(i),q=bead(i+1);
+      model.push([shade(paint,.79),p,q,[q[0],q[1],q[2]-.24],[p[0],p[1],p[2]-.24]]);
+    }
+  }
+}
+function coupeCanopy(model,paint){
+  const profile=[[-11,6.9,8.4,8.65],[-7,6.8,8.6,12.1],[-2,6.5,8.65,14.1],
+    [2.8,6.5,8.7,14],[7.7,6.85,9.06,12.1],[12.4,6.15,9.32,9.5]];
+  const rows=Array.from({length:25},(_,row)=>{
+    const y=-11+23.4*row/24,[w,base,top]=blendProfile(profile,y);
+    return Array.from({length:17},(_,j)=>{
+      const a=(j/16-.5)*Math.PI;
+      return [w*Math.sin(a),y,base+(top-base)*Math.cos(a)**.78];
+    });
+  });
+  for(let i=1;i<rows.length;i++) for(let j=0;j<16;j++){
+    const glass=i<9||i>17||j<3||j>=13;
+    const color=glass?((j+i)%11===0?"#4b606b":"#3a4b56"):paint;
+    model.push([color,rows[i-1][j],rows[i][j],rows[i][j+1],rows[i-1][j+1]]);
+  }
 }
 function alloyWheel(model,side,y,wide){
   const centerZ=3.75,r=wide?3.75:3.45;
@@ -692,7 +754,8 @@ function vehicle(p,mode){
     const roof=p.style==="wagon"?18:coupe?13.2:16;
     const e=[-6,-4,roof], f=[6,-4,roof], g=[6,rear,roof], h=[-6,rear,roof];
     if(p.style==="ute") solid(model,-7,4,14,10,10,10.2,"#493f39","#5c4d42");
-    model.push(["#728e96",a,b,f,e],["#567078",b,c,g,f],["#667f86",c,d,h,g],
+    if(coupe) coupeCanopy(model,paint);
+    else model.push(["#728e96",a,b,f,e],["#567078",b,c,g,f],["#667f86",c,d,h,g],
       ["#50666c",d,a,e,h],[shade(paint,1.1),e,f,g,h]);
     if(!coupe) model.push(["#172324",[-6.6,16.82,6.35],[6.6,16.82,6.35],[5.95,17.23,7.04],[-5.95,17.23,7.04]],
       ["#d9e1df",[-5.4,16.83,7.28],[5.4,16.83,7.28],[4.5,17.19,7.59],[-4.5,17.19,7.59]]);
