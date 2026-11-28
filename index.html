@@ -65,9 +65,9 @@ header{z-index:1;left:0;right:0;display:grid;place-items:center;pointer-events:n
 <body>
 <canvas id="world" aria-label="Perspective 3D Australind foreshore game"></canvas>
 <header><span id="street">Ridley Place Foreshore</span></header>
-<button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p><button id="sprite-book">Sprite journal <span id="sprite-count">0/10</span></button><button id="wardrobe-open">Wardrobe</button><button id="visual-quality" aria-pressed="true">Graphics: Sharp</button></section>
-<div class="panel" id="hint" aria-live="polite"><span id="prompt">Explore the foreshore.</span><small id="keys"><br>W / ↑ forward · S / ↓ reverse · A D / ← → turn · E to interact</small></div>
-<div id="touch"><div id="pad"><button data-key="up" aria-label="Move forward">▲</button><button data-key="left" aria-label="Turn left">◀</button><button data-key="down" aria-label="Move backward">▼</button><button data-key="right" aria-label="Turn right">▶</button></div></div><div id="actions"><button id="action">Interact</button><button id="reset">Return to park</button></div>
+<button id="phone-icon" aria-label="Open activity phone" hidden>📱</button><section id="quests" aria-label="Activity phone"><button id="phone-minimize" aria-label="Minimize activity phone">⌄</button><strong id="mode">On foot</strong><p id="race">🚲 Find Riley to start the bike race.</p><p id="hunt">🧭 Find Scout to start the treasure hunt.</p><p id="activity">Explore east of Old Coast Road for five more activities.</p><p id="delivery">🧺 Drive to the picnic pickup on Paris Road.</p><button id="sprite-book">Sprite journal <span id="sprite-count">0/50</span></button><button id="wardrobe-open">Wardrobe</button><button id="visual-quality" aria-pressed="true">Graphics: Sharp</button></section>
+<div class="panel" id="hint" aria-live="polite"><span id="prompt">Explore the foreshore.</span><small id="keys"><br>W / ↑ forward · S / ↓ reverse · A D / ← → turn · E to interact · Space to jump</small></div>
+<div id="touch"><div id="pad"><button data-key="up" aria-label="Move forward">▲</button><button data-key="left" aria-label="Turn left">◀</button><button data-key="down" aria-label="Move backward">▼</button><button data-key="right" aria-label="Turn right">▶</button></div></div><div id="actions"><button id="action">Interact</button><button id="jump" hidden>Jump</button><button id="reset">Return to park</button></div>
 <aside id="gps" aria-label="GPS overview"><canvas id="gps-map" width="240" height="180" aria-label="Zoomed-out map centred on your location"></canvas><details id="map-info" open><summary aria-label="Map data information">ⓘ</summary><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap · ODbL</a></details></aside>
 <dialog id="house"><div class="room"><div class="room-wall"><h2>Living room</h2><p>Play Estuary Glide on the TV.</p></div><div class="tv"><canvas id="tv-game" width="480" height="270" aria-label="Estuary Glide game"></canvas><button id="tv-flap">Play</button></div><button id="house-exit">Go outside</button></div></dialog>
 <dialog id="wardrobe" aria-labelledby="wardrobe-title" style="width:min(360px,92vw);background:#173a36;color:#fff5df;border:1px solid #97b8a4;border-radius:18px;padding:18px">
@@ -95,6 +95,19 @@ const pressed = new Set();
 const start = {x: 333, y: 242};
 const player = {...start, mode: "On foot"};
 const bike = {x:335,y:241};
+const motorbikes=[
+  {x:341,y:245,heading:0,name:"Red trail motorbike",paint:"#aa463d"},
+  {x:352,y:264,heading:0,name:"Blue road motorbike",paint:"#4c7099"}
+];
+const motorbikeSpawns=motorbikes.map(p=>({...p}));
+let drivenMotorbike=null,jumpTime=0;
+const jumpDuration=.82;
+function canJump(){return player.mode==="Car"||player.mode==="Bike";}
+function jumpHeight(){
+  const t=jumpTime/jumpDuration;
+  return 4*t*(1-t)*(drivenMotorbike||player.mode==="Bike"?1.65:1.12);
+}
+function jumpVehicle(){if(canJump()&&!jumpTime) jumpTime=jumpDuration;}
 const car = {x:347,y:268,style:"hatch",paint:"#bfc4bd",name:"Silver hatchback"};
 const carSpawns=[
   [car,347,268],
@@ -233,7 +246,7 @@ function headingPoint(p,x,y,z=0){
   const c=Math.cos(angle), a=Math.sin(angle);
   const scale=p.modelScale??1;
   y*=p.lengthScale??1;
-  return [p.x+(x*c-y*a)*scale,p.y+(x*a+y*c)*scale,z*scale];
+  return [p.x+(x*c-y*a)*scale,p.y+(x*a+y*c)*scale,z*scale+(p.airLift||0)];
 }
 // Render nearby hero meshes into a transparent, depth-tested WebGL tile.
 let modelRenderer;
@@ -453,6 +466,7 @@ function ellipsoid(faces,x,y,z,rx,ry,rz,color,segments=8){
   ringMesh(faces,rings,color,segments);
 }
 function shadow(p,w,d){
+  if(p.airLift) p={...p,airLift:0};
   const points=Array.from({length:16},(_,i)=>{
     const a=i*Math.PI/8;
     return headingPoint(p,Math.cos(a)*w+2,Math.sin(a)*d+3,.15);
@@ -727,7 +741,7 @@ function vehicle(p,mode){
   const style=p.style||"hatch", paint=p.paint||"#bfc4bd";
   if(mode==="Car") p.lengthScale=style==="wagon"?1.18:style==="ute"?1.12:1;
   const coupe=style==="coupe";
-  const key=mode==="Car"?mode+style+paint:mode;
+  const key=mode==="Car"||mode==="Motorbike"?mode+style+paint:mode;
   const cached=vehicleModels.get(key);
   if(cached){mesh(p,cached);return;}
   const model=[];
@@ -799,6 +813,24 @@ function vehicle(p,mode){
     if(!coupe) for(const x of [-7,4]){
       model.push(["#9e453c",[x,17.1,6],[x+3,17.1,6],[x+3,17.1,8],[x,17.1,8]]);
       model.push(["#fbf1cd",[x,-18.08,6],[x+3,-18.08,6],[x+3,-18.08,7.2],[x,-18.08,7.2]]);
+    }
+  }else if(mode==="Motorbike"){
+    for(const y of [-9,9]){
+      const wheel=(radius,i)=>[0,y+Math.cos(i*Math.PI/8)*radius,4.25+Math.sin(i*Math.PI/8)*radius];
+      for(let i=0;i<16;i++){
+        model.push(["#292d31",wheel(4.15,i),wheel(4.15,i+1),wheel(2.95,i+1),wheel(2.95,i)]);
+        if(i%2===0) model.push(["#9aa4a3",[0,y,4.25],wheel(2.95,i),wheel(2.95,i+1)]);
+      }
+    }
+    solid(model,-2.4,-3.4,4.8,7.2,4.9,8.8,"#777f7f","#41474b");
+    ringMesh(model,[[7,0,-1,2.8,4.4],[10.8,0,-1.5,2.65,4.15],[11.9,0,-1.65,1.85,2.8]],paint,8);
+    solid(model,-2.1,2,4.2,6.6,9,10.5,"#36383d","#23262b");
+    solid(model,-4.4,-6.43,8.8,.75,11.9,12.65,"#8f989a","#535b5e");
+    solid(model,-1.28,-8,2.56,2,9.2,10.7,"#f4edd5","#7b827c");
+    solid(model,1.65,4.4,1.08,6.3,4.15,5.2,"#b1b8b4","#747a78");
+    for(const x of [-.7,.7]){
+      model.push(["#a2a7a5",[x,-9,4.3],[x,-8,4.4],[x,-4.5,11],[x,-5.5,11]]);
+      model.push(["#696f71",[x,9,4.3],[x,8,4.4],[x,2.5,8.5],[x,3.5,8.5]]);
     }
   }else{
     for(const y of [-8,8]){
@@ -1571,7 +1603,14 @@ function draw(){
       label(checkpoint.x,checkpoint.y,2.9,String(race+1));
     }]);
   }
-  if(player.mode!=="Bike") objects.push([bike,()=>{vehicle(bike,"Bike"); label(bike.x,bike.y,2.2,"Bike");}]);
+  if(player.mode!=="Bike"||drivenMotorbike) objects.push([bike,()=>{vehicle(bike,"Bike"); label(bike.x,bike.y,2.2,"Bike");}]);
+  for(const motorbike of motorbikes){
+    if(motorbike===drivenMotorbike) continue;
+    objects.push([motorbike,()=>{
+      vehicle(motorbike,"Motorbike");
+      if(distance(player,motorbike)<10) label(motorbike.x,motorbike.y,1.8,motorbike.name);
+    }]);
+  }
   for(const [item] of carSpawns){
     if(item===drivenCar) continue;
     objects.push([item,()=>{
@@ -1613,8 +1652,14 @@ function draw(){
       mesh({...player,modelScale:.10},airframe);
       return;
     }
-    if(player.mode!=="On foot") vehicle(player.mode==="Car"?{...player,style:drivenCar?.style,paint:drivenCar?.paint,lit:drivenCar?.vehicleMode?"":"car"}:player,drivenCar?.vehicleMode||player.mode);
-    if(player.mode!=="Car") person({...player, y:player.y-27*Math.sin(bounce/.48*Math.PI)},"#f37854");
+    const airLift=jumpHeight();
+    if(player.mode!=="On foot"){
+      const type=drivenMotorbike?"Motorbike":drivenCar?.vehicleMode||player.mode;
+      vehicle({...player,airLift,style:drivenCar?.style,paint:(drivenMotorbike||drivenCar)?.paint,
+        lit:type==="Car"?"car":null},type);
+    }
+    if(player.mode!=="Car") person({...player,airLift:airLift+(player.mode==="Bike"?.42:0),
+      y:player.y-27*Math.sin(bounce/.48*Math.PI)},"#f37854");
     if(player.mode==="Bike") dot(player.x,player.y,2.1,.16,"#fff5bc");
   }]);
   objects.sort((a,b)=>{
@@ -1635,18 +1680,21 @@ function action(){
   if(player.mode==="Plane") return ["Land at airstrip",cancelActivity];
   if(hunt===1 && near(chest)) return ["Open treasure",()=>{hunt=2;}];
   if(near(scout) && hunt===0) return ["Talk to Scout",()=>{hunt=1;}];
-  if(near(riley) && (race<0 || race>=route.length) && player.mode==="Bike"){
+  if(near(riley) && (race<0 || race>=route.length) && player.mode==="Bike"&&!drivenMotorbike){
     return ["Race Riley",()=>{race=0;raceTime=0;}];
   }
   if(player.mode==="Boat"){
     const dock=shoreBoats.find(boat=>distance(player,boat.dock)<9)?.dock;
     return dock?["Step onto jetty",()=>leaveBoat(dock)]:["Return to a jetty to dock",null];
   }
+  if(jumpTime>0) return ["Airborne",null];
   if(player.mode!=="On foot") return ["Hop off",leaveVehicle];
   const sprite=estuarySprites.filter(p=>distance(player,p)<2.7).sort((a,b)=>distance(player,a)-distance(player,b))[0];
   if(sprite) return ["Meet "+sprite.name,()=>openSpriteDialog(sprite)];
-  if(!active && near(bike)) return ["Ride bike",()=>enterVehicle(bike,"Bike")];
+  if(!active && near(bike)&&!motorbikes.some(p=>distance(player,p)<2.75)) return ["Ride bike",()=>enterVehicle(bike,"Bike")];
   if(!active){
+    const motorcycle=motorbikes.find(p=>distance(player,p)<2.75);
+    if(motorcycle) return ["Ride "+motorcycle.name,()=>enterVehicle(motorcycle,"Bike")];
     const parked=carSpawns.map(([item])=>item).filter(near)
       .sort((a,b)=>distance(player,a)-distance(player,b))[0];
     if(parked) return ["Drive "+parked.name,()=>enterVehicle(parked,"Car")];
@@ -1659,6 +1707,7 @@ function action(){
 }
 function enterVehicle(vehicle,mode){
   if(mode==="Car") drivenCar=vehicle;
+  if(mode==="Bike") drivenMotorbike=motorbikes.includes(vehicle)?vehicle:null;
   if(mode==="Boat") drivenBoat=vehicle;
   Object.assign(player,{x:vehicle.x,y:vehicle.y,heading:vehicle.heading||0,mode});
 }
@@ -1668,7 +1717,9 @@ function leaveVehicle(){
     leaveBoat(drivenBoat.dock);
     return;
   }
-  const vehicle = player.mode==="Bike"?bike:(drivenCar||car);
+  const vehicle = player.mode==="Bike"?(drivenMotorbike||bike):(drivenCar||car);
+  drivenMotorbike=null;
+  jumpTime=0;
   drivenCar=null;
   Object.assign(vehicle,{x:player.x,y:player.y,heading:player.heading});
   player.mode="On foot";
@@ -1681,10 +1732,11 @@ function say(element,value){
   if(element.textContent!==value) element.textContent=value;
 }
 function update(dt){
+  jumpTime=Math.max(0,jumpTime-dt);
   const horizontal = Number(pressed.has("right"))-Number(pressed.has("left"));
   const vertical = Number(pressed.has("down"))-Number(pressed.has("up"));
   const drivingBus=drivenCar?.vehicleMode==="Bus";
-  const speed=player.mode==="Plane"?42:player.mode==="Car"?(drivingBus?(vertical>0?8:24):(vertical>0?14:44)):player.mode==="Bike"?9:player.mode==="Boat"?21:4.4;
+  const speed=player.mode==="Plane"?42:player.mode==="Car"?(drivingBus?(vertical>0?8:24):(vertical>0?14:44)):player.mode==="Bike"?(drivenMotorbike?28:9):player.mode==="Boat"?21:4.4;
   const turnRate=player.mode==="Car"?(drivingBus?1.32:2.2):player.mode==="Plane"?2.05:3;
   player.heading=(player.heading||0)+horizontal*dt*turnRate;
   const forward=-vertical;
@@ -1718,7 +1770,8 @@ function update(dt){
   }
   updateStreet(dt);
   updateGps(dt);
-  say(ui.mode,drivingBus?"Bus":player.mode);
+  say(ui.mode,drivingBus?"Bus":drivenMotorbike?"Motorbike":player.mode);
+  document.getElementById("jump").hidden=!canJump();
   say(ui.delivery,["🧺 Drive to the picnic pickup on Paris Road.","🧺 Drive to the foreshore picnic drop-off.","⭐ Picnic delivered!"][delivery]);
   say(ui.race,race>=route.length ? (raceTime<=finishTime?"🏁 You won the bike race!":"🏁 You finished the bike race!") : race>=0 ? "🚲 Checkpoint "+(race+1)+" of "+route.length : "🚲 Ride a bike over to Riley to race.");
   say(ui.hunt,hunt===2?"⭐ You found the treasure!":hunt===1?"🧭 Look near the land end of the jetty.":"🧭 Find Scout to start the treasure hunt.");
@@ -1841,7 +1894,47 @@ const estuarySprites=[
   {name:"Specklecrest",kind:"lizard",place:"Near the Paris Road picnic pickup",x:479,y:338,paint:"#aac17c",trim:"#617d4d",form:6,power:3},
   {name:"Pepperbill",kind:"pelican",place:"South of the jetties",x:293,y:370,paint:"#e7e2ce",trim:"#dcaa68",form:7,power:2},
   {name:"Mosskip",kind:"frog",place:"South along the foreshore",x:286,y:418,paint:"#98c980",trim:"#547d55",form:8,power:3},
-  {name:"Wattleflutter",kind:"moth",place:"Around the basketball activity",x:483,y:367,paint:"#f0be6c",trim:"#986ca1",form:9,power:2}
+  {name:"Wattleflutter",kind:"moth",place:"Around the basketball activity",x:483,y:367,paint:"#f0be6c",trim:"#986ca1",form:9,power:2},
+  {"name":"Spindrift","kind":"echidna","place":"Foreshore paths","x":302,"y":136,"paint":"#bf9973","trim":"#795642","form":0,"power":2},
+  {"name":"Banksibud","kind":"possum","place":"Foreshore paths","x":297,"y":153,"paint":"#87a79b","trim":"#466c70","form":3,"power":3},
+  {"name":"Pipitide","kind":"lizard","place":"Foreshore paths","x":295,"y":174,"paint":"#a1b4ca","trim":"#625c8e","form":6,"power":4},
+  {"name":"Tufttail","kind":"moth","place":"Foreshore paths","x":304,"y":189,"paint":"#d8b994","trim":"#866c50","form":9,"power":2},
+  {"name":"Dapplehorn","kind":"crab","place":"Foreshore paths","x":313,"y":201,"paint":"#dda58c","trim":"#8c5772","form":2,"power":3},
+  {"name":"Bracklenook","kind":"wallaby","place":"Foreshore paths","x":326,"y":209,"paint":"#9ab982","trim":"#677444","form":5,"power":4},
+  {"name":"Gullyhop","kind":"frog","place":"Foreshore paths","x":340,"y":216,"paint":"#9fc4c4","trim":"#487a8c","form":8,"power":2},
+  {"name":"Shellskip","kind":"mudskipper","place":"Foreshore paths","x":351,"y":228,"paint":"#dac58b","trim":"#9b7351","form":1,"power":3},
+  {"name":"Sandscurry","kind":"wren","place":"Foreshore paths","x":350,"y":248,"paint":"#adacd0","trim":"#6d6395","form":4,"power":4},
+  {"name":"Lintwing","kind":"pelican","place":"Foreshore paths","x":336,"y":258,"paint":"#d1bb9c","trim":"#7a7478","form":7,"power":2},
+  {"name":"Creekcrest","kind":"crab","place":"South foreshore and waterfront","x":302,"y":295,"paint":"#d8b994","trim":"#866c50","form":2,"power":3},
+  {"name":"Snootlet","kind":"wallaby","place":"South foreshore and waterfront","x":315,"y":303,"paint":"#dda58c","trim":"#8c5772","form":5,"power":4},
+  {"name":"Tanglepaw","kind":"frog","place":"South foreshore and waterfront","x":320,"y":320,"paint":"#9ab982","trim":"#677444","form":8,"power":2},
+  {"name":"Pebblepuff","kind":"mudskipper","place":"South foreshore and waterfront","x":335,"y":334,"paint":"#9fc4c4","trim":"#487a8c","form":1,"power":3},
+  {"name":"Needleback","kind":"wren","place":"South foreshore and waterfront","x":340,"y":358,"paint":"#dac58b","trim":"#9b7351","form":4,"power":4},
+  {"name":"Wavetail","kind":"pelican","place":"South foreshore and waterfront","x":310,"y":389,"paint":"#adacd0","trim":"#6d6395","form":7,"power":2},
+  {"name":"Featherfoam","kind":"echidna","place":"South foreshore and waterfront","x":321,"y":412,"paint":"#d1bb9c","trim":"#7a7478","form":0,"power":3},
+  {"name":"Marshmottle","kind":"possum","place":"South foreshore and waterfront","x":292,"y":448,"paint":"#bf9973","trim":"#795642","form":3,"power":4},
+  {"name":"Driftwhisk","kind":"lizard","place":"South foreshore and waterfront","x":298,"y":480,"paint":"#87a79b","trim":"#466c70","form":6,"power":2},
+  {"name":"Wattlepip","kind":"moth","place":"South foreshore and waterfront","x":298,"y":510,"paint":"#a1b4ca","trim":"#625c8e","form":9,"power":3},
+  {"name":"Barkbuckle","kind":"wren","place":"Paris Road and nearby streets","x":465,"y":340,"paint":"#9fc4c4","trim":"#487a8c","form":4,"power":4},
+  {"name":"Flickerfrill","kind":"pelican","place":"Paris Road and nearby streets","x":510,"y":319,"paint":"#dac58b","trim":"#9b7351","form":7,"power":2},
+  {"name":"Tealtoe","kind":"echidna","place":"Paris Road and nearby streets","x":550,"y":288,"paint":"#adacd0","trim":"#6d6395","form":0,"power":3},
+  {"name":"Rubblekin","kind":"possum","place":"Paris Road and nearby streets","x":603,"y":274,"paint":"#d1bb9c","trim":"#7a7478","form":3,"power":4},
+  {"name":"Sedgefin","kind":"lizard","place":"Paris Road and nearby streets","x":655,"y":254,"paint":"#bf9973","trim":"#795642","form":6,"power":2},
+  {"name":"Dewspark","kind":"moth","place":"Paris Road and nearby streets","x":710,"y":246,"paint":"#87a79b","trim":"#466c70","form":9,"power":3},
+  {"name":"Myrtlehop","kind":"crab","place":"Paris Road and nearby streets","x":760,"y":231,"paint":"#a1b4ca","trim":"#625c8e","form":2,"power":4},
+  {"name":"Rainshell","kind":"wallaby","place":"Paris Road and nearby streets","x":813,"y":219,"paint":"#d8b994","trim":"#866c50","form":5,"power":2},
+  {"name":"Pocketwing","kind":"frog","place":"Paris Road and nearby streets","x":872,"y":199,"paint":"#dda58c","trim":"#8c5772","form":8,"power":3},
+  {"name":"Glintsnout","kind":"mudskipper","place":"Paris Road and nearby streets","x":933,"y":177,"paint":"#9ab982","trim":"#677444","form":1,"power":4},
+  {"name":"Pindanpuff","kind":"lizard","place":"Eastern neighbourhoods","x":979,"y":249,"paint":"#d1bb9c","trim":"#7a7478","form":6,"power":2},
+  {"name":"Saltwhisk","kind":"moth","place":"Eastern neighbourhoods","x":1034,"y":204,"paint":"#bf9973","trim":"#795642","form":9,"power":3},
+  {"name":"Fernfrizzle","kind":"crab","place":"Eastern neighbourhoods","x":1100,"y":136,"paint":"#87a79b","trim":"#466c70","form":2,"power":4},
+  {"name":"Rufflefern","kind":"wallaby","place":"Eastern neighbourhoods","x":1155,"y":103,"paint":"#a1b4ca","trim":"#625c8e","form":5,"power":2},
+  {"name":"Puddlecrest","kind":"frog","place":"Eastern neighbourhoods","x":1232,"y":75,"paint":"#d8b994","trim":"#866c50","form":8,"power":3},
+  {"name":"Wandoowink","kind":"mudskipper","place":"Eastern neighbourhoods","x":1338,"y":56,"paint":"#dda58c","trim":"#8c5772","form":1,"power":4},
+  {"name":"Daisywing","kind":"wren","place":"Eastern neighbourhoods","x":1420,"y":18,"paint":"#9ab982","trim":"#677444","form":4,"power":2},
+  {"name":"Moonmottle","kind":"pelican","place":"Eastern neighbourhoods","x":1497,"y":-21,"paint":"#9fc4c4","trim":"#487a8c","form":7,"power":3},
+  {"name":"Rushruff","kind":"echidna","place":"Eastern neighbourhoods","x":1640,"y":-70,"paint":"#dac58b","trim":"#9b7351","form":0,"power":4},
+  {"name":"Breezebill","kind":"possum","place":"Eastern neighbourhoods","x":1760,"y":-91,"paint":"#adacd0","trim":"#6d6395","form":3,"power":2}
 ];
 function paintSprite(g,s,x,y,r,flip=false){
   g.save();
@@ -1893,7 +1986,7 @@ try{
 }catch{}
 let encounter=null, duel=null;
 function refreshSpriteJournal(){
-  spriteUI.count.textContent=friends.size+"/10";
+  spriteUI.count.textContent=friends.size+"/"+estuarySprites.length;
   const items=estuarySprites.map(s=>{
     const item=document.createElement("li");
     item.textContent=(friends.has(s.name)?"✓ ":"")+s.name+" · "+s.place;
@@ -1913,7 +2006,7 @@ function openSpriteDialog(sprite=null){
   spriteUI.collect.hidden=!sprite||friends.has(sprite.name);
   spriteUI.challenge.hidden=true;
   for(const move of ["dash","guard","focus"]) spriteUI[move].hidden=true;
-  spriteUI.note.textContent=sprite?"Befriend this Sprite or choose a companion for a friendly duel.":"Find all ten Sprites around Australind. Their locations are listed below.";
+  spriteUI.note.textContent=sprite?"Befriend this Sprite or choose a companion for a friendly duel.":"Find all "+estuarySprites.length+" Sprites around Australind. Their locations are listed below.";
   if(sprite){
     updateSpriteTeam();
     drawSpriteDuel();
@@ -2099,6 +2192,11 @@ function drawTv(){
 
 addEventListener("keydown",event=>{
   if(houseDialog.open||spriteDialog.open||wardrobe.open) return;
+  if(event.code==="Space"&&canJump()){
+    event.preventDefault();
+    if(!event.repeat) jumpVehicle();
+    return;
+  }
   if(keys[event.key.toLowerCase()]){
     event.preventDefault();
     pressed.add(keys[event.key.toLowerCase()]);
@@ -2119,12 +2217,16 @@ document.querySelectorAll("[data-key]").forEach(button=>{
   }
 });
 document.getElementById("action").onclick=interact;
+document.getElementById("jump").onclick=jumpVehicle;
 document.getElementById("reset").onclick=()=>{
   cancelActivity();
   leaveVehicle();
   Object.assign(player,start,{heading:0});
   Object.assign(camera,start,{yaw:0,sin:0,cos:1,scale:.14});
   Object.assign(bike,{x:335,y:241,heading:0});
+  motorbikes.forEach((bike,i)=>Object.assign(bike,motorbikeSpawns[i]));
+  drivenMotorbike=null;
+  jumpTime=0;
   for(const [item,x,y] of carSpawns) Object.assign(item,{x,y,heading:0});
   drivenCar=null;
   shoreBoats.forEach((boat,index)=>Object.assign(boat,boatStarts[index]));
